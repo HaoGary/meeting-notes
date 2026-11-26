@@ -1,0 +1,30 @@
+# 依賴與建置產物
+node_modules/
+dist/
+dist-mock/
+preview/
+*.local
+
+# 測試輸出
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# 編輯器與系統檔
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.log
+npm-debug.log*
+
+# 環境變數
+.env
+.env.*
+!.env.example
+!.env.production
+!.env.development
+!.env.mock
+!.env.standalone
