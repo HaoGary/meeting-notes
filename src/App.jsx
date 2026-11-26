@@ -136,7 +136,14 @@ export default function App() {
     if (r.page !== 'login') setNotice(null);
     setRoute(r);
   };
+  // 使用者名單（主持人、參與人員選單用）：進入會議相關頁面時重新抓取，帳號管理新增或停用的人會立即反映
+  const refreshUsers = useCallback(() => api.listUsers().then(setUsers).catch(() => {}), [api]);
   const navigate = (r) => guard(() => { setRoute(r); if (r.page === 'meetings') loadList(); });
+  // 不論是點選單、點通知、改網址或按上一頁，只要進入會議列表或會議頁就更新名單
+  const hasMe = !!me;
+  useEffect(() => {
+    if (hasMe && ['meetings', 'meeting'].includes(route.page)) refreshUsers();
+  }, [hasMe, route.page, route.id, refreshUsers]);
   const openMeeting = (id) => navigate({ page: 'meeting', id });
   const openShare = (tk) => { setReturnTo(route); setRoute({ page: 'share', token: tk }); };
 

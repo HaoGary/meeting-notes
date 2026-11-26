@@ -144,6 +144,8 @@ const actions: Record<string, (me: Caller, b: Record<string, any>) => Promise<un
       });
       if (error || !data.user) throw new ApiError(400, `建立帳號失敗：${error?.message ?? '未知錯誤'}`, 'AUTH_ERROR');
       userId = data.user.id;
+      // app_metadata 在建立後才寫入，建立當下的觸發器讀不到，這裡直接設定
+      await sql`update public.profiles set role_id = ${roleId}, must_change_password = true, created_by = ${me.id} where id = ${userId}`;
     } else {
       const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { data: { name, username }, redirectTo: APP_URL });
       if (error || !data.user) throw new ApiError(400, `寄送邀請信失敗：${error?.message ?? '未知錯誤'}`, 'AUTH_ERROR');
