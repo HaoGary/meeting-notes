@@ -111,6 +111,9 @@ export default function App() {
     toast('已登出');
   });
 
+  // 不開放自行註冊時，註冊頁一律導回登入頁
+  useEffect(() => { if (route.page === 'register' && !features.selfSignup) setRoute({ page: 'login' }); }, [route.page]);
+
   // ── 網址同步 ──
   useEffect(() => { const h = toHash(route); if (location.hash.slice(1) !== h) location.hash = h; }, [route]);
   useEffect(() => {
@@ -185,7 +188,7 @@ export default function App() {
   const authProps = { api, go };
   let publicView = null;
   if (route.page === 'login') publicView = <LoginPage key={route.prefill || 'login'} {...authProps} onLoggedIn={onLoggedIn} notice={notice} prefill={route.prefill} />;
-  if (route.page === 'register') publicView = <RegisterPage {...authProps} />;
+  if (route.page === 'register' && features.selfSignup) publicView = <RegisterPage {...authProps} />;
   if (route.page === 'verify-email') publicView = <VerifyEmailPage key={route.email} {...authProps} email={route.email} resend={route.resend} />;
   if (route.page === 'confirm') publicView = <ConfirmLinkPage key={route.token} {...authProps} token={route.token} />;
   if (route.page === 'forgot-password') publicView = <ForgotPasswordPage {...authProps} />;

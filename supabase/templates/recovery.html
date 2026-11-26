@@ -1,0 +1,11 @@
+<div style="font-family:'Noto Sans TC','PingFang TC','Microsoft JhengHei',Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1f2937;line-height:1.7">
+  <h2 style="margin:0 0 16px;font-size:20px;color:#111827">重設您的密碼</h2>
+  <p style="margin:0 0 12px">您好，</p><p style="margin:0">我們收到 {{ .Email }} 的重設密碼申請。請點選下方按鈕設定新密碼。</p>
+  <p style="margin:28px 0">
+    <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">重設密碼</a>
+  </p>
+  <p style="margin:0 0 8px;font-size:13px;color:#6b7280">如果按鈕無法點選，請複製下方網址貼到瀏覽器開啟：</p>
+  <p style="margin:0 0 24px;font-size:12px;color:#6b7280;word-break:break-all">{{ .ConfirmationURL }}</p>
+  <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+  <p style="margin:0;font-size:12px;color:#9ca3af">此連結有使用期限且只能使用一次。若您沒有提出申請，請忽略這封信，您的密碼不會被變更；若持續收到此信，請聯絡系統管理員。</p>
+</div>

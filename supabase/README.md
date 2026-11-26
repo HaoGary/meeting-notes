@@ -8,23 +8,35 @@
 |---|---|
 | `migrations/` | 資料表、RLS、RPC、觸發器、預設資料的 SQL |
 | `functions/accounts/` | Edge Function：管理員帳號操作與個人登入裝置（需要 secret key，只在伺服器執行） |
+| `templates/` | 中文信件範本（邀請、重設密碼、Email 變更、註冊驗證），貼到 Authentication → Emails |
 
-## 同步 migration 到本機
+## Migration
 
-大部分 migration 是直接套用到 Supabase 的，第一次請把完整紀錄抓回本機（之後納入版控）：
+`migrations/` 已與遠端資料庫同步（2026-11-26），依版本號排序即為完整的建置順序：
+
+| 版本 | 內容 | 套用方式 |
+|---|---|---|
+| 20261126035823_schema | 資料表、索引、RLS 開啟、基本授權 | MCP |
+| 20261126035929_access_rls | 權限判斷函式、RLS 政策、觸發器 | MCP |
+| 20261126041135_meeting_rpc | 會議相關 RPC | MCP |
+| 20261126041207_admin_rpc | 帳號、角色 RPC、函式執行權限 | MCP |
+| 20261126041225_seed_storage_realtime | 預設權限與角色、圖片 bucket、Realtime | MCP |
+| 20261126041300_functions_with_delete | 設定參與人、儲存角色權限、刪除角色 | SQL Editor 手動 |
+| 20261126071217_list_accounts_session_count | 帳號列表加上登入裝置數 | MCP |
+| 20261126093408_notifications | 通知表、RLS、通知觸發器 | MCP |
+| 20261126093615_fix_notify_meeting_update | 修正時間地點變更通知 | MCP |
+| 20261126093700_notifications_manual | 參與人差異通知、每日清除 30 天前通知 | SQL Editor 手動 |
+
+標示「SQL Editor 手動」的兩筆含 delete 語句，是在後台手動執行的，遠端沒有它們的版本紀錄。第一次用 CLI 連結專案時，請先補記錄，避免 `db push` 重複套用：
 
 ```bash
 npx supabase login
 npx supabase link --project-ref lvfpljcpyajhkdpzxcde
-npx supabase migration fetch      # 下載遠端所有 migration 到 supabase/migrations/
-npx supabase migration list       # 確認本機與遠端一致
+npx supabase migration repair --status applied 20261126041300 20261126093700
+npx supabase migration list      # 本機與遠端應完全一致
 ```
 
-`20261126041300_functions_with_delete.sql` 是在 SQL Editor 手動執行的（內含 delete 語句），遠端沒有它的紀錄；內容都是 `create or replace`，重複執行不會有影響。可用下列指令補記錄：
-
-```bash
-npx supabase migration repair --status applied 20261126041300
-```
+之後新的資料庫變更請新增 migration 檔，再用 `npx supabase db push` 套用。
 
 ## 部署 Edge Function
 
@@ -37,5 +49,7 @@ npx supabase functions deploy accounts --no-verify-jwt
 ## 後台設定（Dashboard）
 
 - Authentication → Sign In / Providers：已關閉「Allow new users to sign up」（只由管理員建立帳號）
+- Authentication → SMTP：使用 Gmail（smtp.gmail.com:465，應用程式密碼）
+- Authentication → Emails：套用 `templates/` 的中文範本
 - Authentication → URL Configuration：Site URL 與 Redirect URLs 需填入前台網址（例如 GitHub Pages 網址），邀請信與重設密碼信才會導回網站
 - Edge Functions → Secrets：可選 `APP_URL`（信件連結導回的網址；未設定時用 Site URL）
