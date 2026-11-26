@@ -159,6 +159,11 @@ const newToken = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b
 const publicUser = (u) => ({ id: u.id, name: u.name, color: u.color, active: u.active });
 
 // ── API ─────────────────────────────────────
+const demoNotifications = [
+  { id: 1, type: 'meeting_added', meetingId: 'm1', title: '你已被加入會議「2027 Q1 日本線產品規劃會議」', body: '林怡君 將你加入，權限：可編輯', read: false, at: Date.now() - 25 * 60e3 },
+  { id: 2, type: 'meeting_updated', meetingId: 'm2', title: '「每週業務例會」的時間已變更', body: '林怡君 更新為 週四 09:30–10:30', read: false, at: Date.now() - 5 * 3600e3 },
+  { id: 3, type: 'role_changed', meetingId: null, title: '你的角色已變更為「系統管理員」', body: '由 系統 變更，可使用的功能可能有所不同', read: true, at: Date.now() - 3 * 864e5 },
+];
 export function createApi(getToken, { onUnauthorized } = {}) {
   // 由 Session token 解析目前登入者；token 失效時通知前端登出
   let currentSession = null;
@@ -453,6 +458,18 @@ export function createApi(getToken, { onUnauthorized } = {}) {
         persist();
         return { count: before - 1 };
       },
+    },
+
+    // ── 通知（預覽：示範資料存在記憶體） ──
+    notifications: {
+      async list() {
+        await delay(150);
+        await me();
+        return clone(demoNotifications);
+      },
+      async markRead(id) { const n = demoNotifications.find((x) => x.id === id); if (n) n.read = true; return { ok: true }; },
+      async markAllRead() { const c = demoNotifications.filter((x) => !x.read).length; demoNotifications.forEach((x) => { x.read = true; }); return { count: c }; },
+      subscribe() { return () => {}; },
     },
 
     // ── 帳號驗證（不需登入） ───────────────────

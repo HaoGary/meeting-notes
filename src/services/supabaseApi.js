@@ -340,6 +340,34 @@ export function createApi(_getToken, { onUnauthorized, onSignedOut } = {}) {
       },
     },
 
+    // ── 通知（只能讀、標記自己的；新增由資料庫觸發器產生） ──
+    notifications: {
+      async list() {
+        const rows = await run(sb.from('notifications').select('id, type, meeting_id, title, body, read_at, created_at')
+          .order('created_at', { ascending: false }).limit(50));
+        return rows.map((n) => ({ id: n.id, type: n.type, meetingId: n.meeting_id, title: n.title, body: n.body, read: !!n.read_at, at: ms(n.created_at) }));
+      },
+      async markRead(id) {
+        await run(sb.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id).is('read_at', null));
+        return { ok: true };
+      },
+      async markAllRead() {
+        return { count: await rpc('mark_all_notifications_read') };
+      },
+      // 新通知即時推送（Realtime，仍受 RLS 限制）；回傳取消訂閱函式
+      subscribe(onInsert) {
+        let channel = null; let stopped = false;
+        sb.auth.getSession().then(({ data }) => {
+          const uid = data.session?.user?.id;
+          if (!uid || stopped) return;
+          channel = sb.channel(`notifications-${uid}`)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${uid}` }, () => onInsert())
+            .subscribe();
+        });
+        return () => { stopped = true; if (channel) sb.removeChannel(channel); };
+      },
+    },
+
     // ── 權限管理、帳號管理 ──
     admin: {
       async listRoles() {

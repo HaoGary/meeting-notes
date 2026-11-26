@@ -9,7 +9,6 @@ import MenuIcon from '@mui/icons-material/Menu';
 import MenuOpen from '@mui/icons-material/MenuOpen';
 import DashboardOutlined from '@mui/icons-material/DashboardOutlined';
 import EventNoteOutlined from '@mui/icons-material/EventNoteOutlined';
-import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutlined';
 import KeyboardArrowDown from '@mui/icons-material/KeyboardArrowDown';
 import AdminPanelSettingsOutlined from '@mui/icons-material/AdminPanelSettingsOutlined';
 import ShieldOutlined from '@mui/icons-material/ShieldOutlined';
@@ -32,7 +31,7 @@ export const NAV = [
   ] },
 ];
 
-export default function AppShell({ page, onNavigate, badges = {}, user, permissions = [], onLogout, children }) {
+export default function AppShell({ page, onNavigate, badges = {}, user, permissions = [], onLogout, notifications, children }) {
   const desktop = useMediaQuery((t) => t.breakpoints.up('md'));
   const [mini, setMini] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -91,7 +90,7 @@ export default function AppShell({ page, onNavigate, badges = {}, user, permissi
           </Tooltip>
           <Logo />
           <Box flex={1} />
-          <Tooltip title="通知"><IconButton><Badge variant="dot" color="error"><NotificationsNoneOutlined /></Badge></IconButton></Tooltip>
+          {notifications}
           <Divider orientation="vertical" flexItem sx={{ my: 1.5, mx: 0.5 }} />
           <Stack direction="row" alignItems="center" gap={1} onClick={(e) => setUserEl(e.currentTarget)}
             sx={{ cursor: 'pointer', borderRadius: 2, pl: 0.5, pr: 1, py: 0.5, '&:hover': { bgcolor: 'action.hover' } }}>

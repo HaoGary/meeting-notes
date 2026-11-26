@@ -15,6 +15,7 @@ import AccountSettingsPage from './pages/account/AccountSettingsPage';
 import AccountsPage from './pages/admin/AccountsPage';
 import { deviceLabel } from './utils/device';
 import AppShell from './components/layout/AppShell';
+import NotificationBell from './components/layout/NotificationBell';
 import MeetingListPage from './pages/meetings/MeetingListPage';
 import MeetingPage from './pages/meetings/MeetingPage';
 import PermissionsPage from './pages/admin/PermissionsPage';
@@ -209,7 +210,8 @@ export default function App() {
   );
 
   return (
-    <AppShell page={route.page} onNavigate={(key) => navigate({ page: key })} user={currentUser} permissions={me.permissions} onLogout={logout}>
+    <AppShell page={route.page} onNavigate={(key) => navigate({ page: key })} user={currentUser} permissions={me.permissions} onLogout={logout}
+      notifications={<NotificationBell key={currentUser.id} api={api} onOpenMeeting={openMeeting} />}>
       {route.page === 'meetings' && (
         <MeetingListPage api={api} onOpenShare={openShare} meetings={meetings} loading={loading} users={users} canCreate={can('meeting.create')}
           onOpen={openMeeting} onNew={() => setNewOpen(true)} onSetStatus={setStatus} onDelete={remove} />

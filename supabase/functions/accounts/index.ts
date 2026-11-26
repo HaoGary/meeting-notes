@@ -205,6 +205,9 @@ const actions: Record<string, (me: Caller, b: Record<string, any>) => Promise<un
       if (error) throw new ApiError(400, `寄送重設信失敗：${error.message}`, 'AUTH_ERROR');
     }
     await audit(me.id, `重設「${t.name}」的密碼（${temp ? '臨時密碼' : '寄送重設信'}）`);
+    await sql`insert into public.notifications (user_id, actor_id, type, title, body)
+              values (${t.id}, ${me.id}, 'password_reset', '你的密碼已由管理員重設',
+                      ${`${me.name} 已${temp ? '設定臨時密碼，登入後需變更密碼' : '寄送重設密碼信'}。若非你本人要求，請聯絡系統管理員。`})`;
     return { tempPassword: temp };
   },
 
