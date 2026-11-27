@@ -17,39 +17,66 @@ import { UserAvatar, fmtDate, guestUser, hostOf } from '../common/ui';
 import { DateInput, TimeInput } from '../common/pickers';
 import ArrowForward from '@mui/icons-material/ArrowForward';
 
-// 選人選單：上方輸入名字（沒有系統帳號的人），下方選系統成員
-function PersonPicker({ anchorEl, onClose, members, onPickUser, onPickName, existing = [], hint }) {
-  const [name, setName] = useState('');
+// 選人選單：輸入框可搜尋，也可新增外部成員；下方分「外部成員」（統一名單）與「系統成員」
+function PersonPicker({ anchorEl, onClose, members, externals = [], onPickUser, onPickName, existing = [] }) {
+  const [q, setQ] = useState('');
   const [err, setErr] = useState('');
-  const close = () => { setName(''); setErr(''); onClose(); };
-  const submit = () => {
-    const n = name.trim();
-    if (!n) return;
-    if (n.length > 40) return setErr('名字最多 40 個字');
-    if (existing.includes(n)) return setErr('已在名單中');
+  const close = () => { setQ(''); setErr(''); onClose(); };
+  const kw = q.trim();
+  const low = kw.toLowerCase();
+  const extList = externals.filter((n) => !existing.includes(n) && (!low || n.toLowerCase().includes(low)));
+  const memList = members.filter((u) => !low || u.name.toLowerCase().includes(low));
+  const exact = kw && (externals.some((n) => n.toLowerCase() === low) || members.some((u) => u.name.toLowerCase() === low) || existing.some((n) => n.toLowerCase() === low));
+  const pickName = (n) => {
+    if (existing.some((x) => x.toLowerCase() === n.toLowerCase())) return setErr('已在名單中');
     onPickName(n); close();
   };
+  const create = () => {
+    if (!kw) return;
+    if (kw.length > 40) return setErr('名字最多 40 個字');
+    pickName(kw);
+  };
+  const onEnter = () => {
+    if (!kw) return;
+    const ext = externals.find((n) => n.toLowerCase() === low);
+    const mem = members.find((u) => u.name.toLowerCase() === low);
+    if (mem) { onPickUser(mem); close(); }
+    else if (ext) pickName(ext);
+    else create();
+  };
+  const head = (t) => <ListSubheader sx={{ lineHeight: '32px', fontSize: 12, bgcolor: 'background.paper' }}>{t}</ListSubheader>;
   return (
     <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={close} autoFocus={false}
-      slotProps={{ paper: { sx: { width: 280, maxWidth: 'calc(100vw - 32px)', maxHeight: 400 } } }} MenuListProps={{ sx: { pt: 0 } }}>
-      <Box sx={{ px: 1.5, pt: 1.5, pb: 1 }} onKeyDown={(e) => e.stopPropagation()}>
-        <Typography fontSize={12} color="text.secondary" mb={0.75}>{hint}</Typography>
-        <Stack direction="row" gap={0.75}>
-          <InputBase autoFocus value={name} placeholder="輸入名字" onChange={(e) => { setName(e.target.value); setErr(''); }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }}
-            inputProps={{ 'aria-label': '輸入名字', maxLength: 40 }}
-            sx={{ flex: 1, fontSize: 14, height: 32, px: 1, borderRadius: 1.5, border: 1, borderColor: err ? 'error.main' : 'divider', '&.Mui-focused': { borderColor: err ? 'error.main' : 'primary.main' } }} />
-          <Button variant="contained" size="small" disableElevation disabled={!name.trim()} onClick={submit} sx={{ minWidth: 0, px: 1.5 }}>加入</Button>
-        </Stack>
+      slotProps={{ paper: { sx: { width: 280, maxWidth: 'calc(100vw - 32px)', maxHeight: 420 } } }} MenuListProps={{ sx: { pt: 0 } }}>
+      <Box sx={{ px: 1.5, pt: 1.5, pb: 1, position: 'sticky', top: 0, zIndex: 2, bgcolor: 'background.paper' }} onKeyDown={(e) => { if (e.key !== 'Escape' && e.key !== 'ArrowDown') e.stopPropagation(); }}>
+        <InputBase autoFocus fullWidth value={q} placeholder="搜尋，或輸入新的外部成員名字" onChange={(e) => { setQ(e.target.value); setErr(''); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); onEnter(); } }}
+          inputProps={{ 'aria-label': '搜尋或輸入名字', maxLength: 40 }}
+          sx={{ fontSize: 14, height: 34, px: 1, borderRadius: 1.5, border: 1, borderColor: err ? 'error.main' : 'divider', '&.Mui-focused': { borderColor: err ? 'error.main' : 'primary.main' } }} />
         {err && <Typography fontSize={12} color="error" mt={0.5}>{err}</Typography>}
       </Box>
-      {members.length > 0 && <Divider />}
-      {members.length > 0 && <ListSubheader sx={{ lineHeight: '32px', fontSize: 12 }}>系統成員</ListSubheader>}
-      {members.map((u) => (
+      {kw && !exact && (
+        <MenuItem onClick={create} sx={{ gap: 1, color: 'primary.main' }}>
+          <Add sx={{ fontSize: 20 }} />
+          <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>新增外部成員「{kw}」</Box>
+        </MenuItem>
+      )}
+      {extList.length > 0 && head('外部成員')}
+      {extList.map((n) => (
+        <MenuItem key={`e-${n}`} onClick={() => pickName(n)} sx={{ gap: 1 }}>
+          <UserAvatar user={guestUser(n)} size={22} />{n}
+          <Box component="span" sx={{ ml: 'auto', fontSize: 11.5, color: 'text.disabled' }}>外部</Box>
+        </MenuItem>
+      ))}
+      {memList.length > 0 && head('系統成員')}
+      {memList.map((u) => (
         <MenuItem key={u.id} onClick={() => { onPickUser(u); close(); }} sx={{ gap: 1 }}>
           <UserAvatar user={u} size={22} />{u.name}
         </MenuItem>
       ))}
+      {kw && exact && !extList.length && !memList.length && (
+        <Typography fontSize={13} color="text.disabled" sx={{ px: 2, py: 1 }}>已在名單中</Typography>
+      )}
     </Menu>
   );
 }
@@ -77,7 +104,7 @@ function Prop({ icon: I, label, children, error, wide }) {
   );
 }
 
-export default function MeetingMeta({ meeting, attendees, users, editable, onChange, onAttendees, collapsed = false, onToggle }) {
+export default function MeetingMeta({ meeting, attendees, users, externals = [], onAddExternal, editable, onChange, onAttendees, collapsed = false, onToggle }) {
   const [addEl, setAddEl] = useState(null);
   const [hostEl, setHostEl] = useState(null);
   const guests = meeting.guests || [];
@@ -159,9 +186,9 @@ export default function MeetingMeta({ meeting, attendees, users, editable, onCha
             {host?.external && <Box component="span" sx={{ fontSize: 11.5, color: 'text.disabled' }}>外部</Box>}
             {!ro && <ExpandMore className="host-caret" sx={{ fontSize: 20, color: 'text.secondary' }} />}
           </Box>
-          <PersonPicker anchorEl={hostEl} onClose={() => setHostEl(null)} hint="主持人沒有系統帳號時，直接輸入名字"
-            members={users} existing={meeting.hostName ? [meeting.hostName] : []}
-            onPickUser={(u) => onChange({ hostId: u.id, hostName: null })} onPickName={(n) => onChange({ hostName: n })} />
+          <PersonPicker anchorEl={hostEl} onClose={() => setHostEl(null)}
+            members={users} externals={externals} existing={meeting.hostName ? [meeting.hostName] : []}
+            onPickUser={(u) => onChange({ hostId: u.id, hostName: null })} onPickName={(n) => { onAddExternal?.(n); onChange({ hostName: n }); }} />
         </Prop>
         <Prop icon={CategoryOutlined} label="會議類型">
           <Select value={meeting.type} disabled={ro} onChange={set('type')} input={<InputBase sx={{ ...selectSx, minWidth: 170 }} />} inputProps={{ 'aria-label': '會議類型' }}
@@ -208,10 +235,10 @@ export default function MeetingMeta({ meeting, attendees, users, editable, onCha
               <>
                 <Button size="small" startIcon={<Add sx={{ fontSize: '16px !important' }} />} onClick={(e) => setAddEl(e.currentTarget)}
                   sx={{ height: 28, borderRadius: 4, px: 1.25, color: 'text.secondary', fontWeight: 500 }}>新增</Button>
-                <PersonPicker anchorEl={addEl} onClose={() => setAddEl(null)} hint="沒有系統帳號的成員，直接輸入名字"
-                  members={notIn} existing={guests}
+                <PersonPicker anchorEl={addEl} onClose={() => setAddEl(null)}
+                  members={notIn} externals={externals} existing={guests}
                   onPickUser={(u) => onAttendees([...attendees, { userId: u.id, permission: 'editor' }])}
-                  onPickName={(n) => onChange({ guests: [...guests, n] })} />
+                  onPickName={(n) => { onAddExternal?.(n); onChange({ guests: [...guests, n] }); }} />
               </>
             )}
           </Stack>

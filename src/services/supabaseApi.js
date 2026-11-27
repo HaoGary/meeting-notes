@@ -128,6 +128,18 @@ export function createApi(_getToken, { onUnauthorized, onSignedOut } = {}) {
       const rows = await run(sb.from('profiles').select('id, name, color, active').eq('active', true).order('created_at'));
       return rows;
     },
+    // 外部成員名單（沒有系統帳號的人）
+    async listExternalMembers() {
+      return (await run(sb.from('external_members').select('id, name').order('name'))).map((r) => r.name);
+    },
+    async addExternalMember(name) {
+      const n = (name || '').trim();
+      if (!n || n.length > 40) throw new ApiError(422, '名字需為 1–40 個字', { code: 'VALIDATION' });
+      const u = await sessionUser();
+      const { error } = await sb.from('external_members').insert({ name: n, created_by: u.id });
+      if (error && error.code !== '23505') throw new ApiError(400, '無法新增外部成員');
+      return n;
+    },
 
     // ── 會議 ──
     async listMeetings() {

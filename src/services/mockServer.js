@@ -205,6 +205,24 @@ export function createApi(getToken, { onUnauthorized } = {}) {
       (await me());
       return clone(db.users.filter((u) => u.active).map(publicUser));
     },
+    async listExternalMembers() {
+      await delay(80);
+      (await me());
+      if (!db.externals) {
+        db.externals = [...new Set(db.meetings.flatMap((m) => [...(m.guests || []), ...(m.hostName ? [m.hostName] : [])]))];
+        persist();
+      }
+      return clone([...db.externals].sort((a, b) => a.localeCompare(b, 'zh-Hant')));
+    },
+    async addExternalMember(name) {
+      await delay(80);
+      (await me());
+      const n = (name || '').trim();
+      if (!n || n.length > 40) throw new ApiError(422, '名字需為 1–40 個字');
+      db.externals = db.externals || [];
+      if (!db.externals.some((x) => x.toLowerCase() === n.toLowerCase())) { db.externals.push(n); persist(); }
+      return n;
+    },
 
     async listMeetings() {
       await delay(200);

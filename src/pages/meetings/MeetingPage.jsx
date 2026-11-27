@@ -53,6 +53,14 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
     return () => { alive = false; };
   }, [api, meetingId]);
 
+  // 外部成員名單（沒有系統帳號的人），新增主持人或參與人員時可直接選
+  const [externals, setExternals] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    api.listExternalMembers?.().then((l) => alive && setExternals(l)).catch(() => {});
+    return () => { alive = false; };
+  }, [api]);
+
   // ── 自動儲存：內容 & 基本資料分開 ──
   const content = useAutosave(async (doc) => {
     const r = await api.saveContent(meetingId, doc, versionRef.current);
@@ -147,6 +155,12 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
   const archived = meeting.status === 'archived';
   const canEdit = permission === 'editor' && !archived;
   const canStatus = permission === 'editor';
+
+  const addExternal = (n) => {
+    if (externals.some((x) => x.toLowerCase() === n.toLowerCase())) return;
+    setExternals((l) => [...l, n].sort((a, b) => a.localeCompare(b, 'zh-Hant')));
+    api.addExternalMember(n).catch((e) => toast(e.message, 'error'));
+  };
 
   const patchMeeting = (patch, now = false) => {
     setData((d) => ({ ...d, meeting: { ...d.meeting, ...patch } }));
@@ -272,7 +286,7 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
 
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
         <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <MeetingMeta meeting={meeting} attendees={attendees} users={users} editable={canEdit}
+          <MeetingMeta meeting={meeting} attendees={attendees} users={users} externals={externals} onAddExternal={addExternal} editable={canEdit}
             onChange={onMetaChange} onAttendees={setAttendees} collapsed={metaCollapsed} onToggle={toggleMeta} />
           {remote && (
             <Alert severity="info" sx={{ borderRadius: 0, py: 0.25 }}
