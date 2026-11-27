@@ -38,10 +38,12 @@
     "@tiptap/pm": "^2.27.3",
     "@tiptap/react": "^2.27.3",
     "@tiptap/starter-kit": "^2.27.3",
+    "@visioncortex/vtracer": "1.0.0-alpha.4",
     "dayjs": "^1.11.23",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-speech-recognition": "^4.0.1"
+    "react-speech-recognition": "^4.0.1",
+    "svgo": "^4.1.0"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { readFileSync } from 'node:fs';
+import vtracerWeb from './vite/vtracerWeb.js';
 
 // 兩種建置方式：
 // - npm run build        → dist/，部署到 GitHub Pages 等網站用（JS 分成多個檔案，利於快取）
@@ -26,7 +27,8 @@ function inlineIntoHtml() {
       let src = html.source;
       for (const [name, file] of Object.entries(bundle)) {
         if (file.type === 'chunk' && name.endsWith('.js')) {
-          const code = file.code.replace(/<\/script/gi, '<\\/script');
+          // 單一檔案沒有需要預載的分割檔：清掉 Vite 預載清單的佔位符
+          const code = file.code.replace(/__VITE_PRELOAD__/g, 'void 0').replace(/<\/script/gi, '<\\/script');
           src = src.replace(new RegExp(`<script[^>]*src="[^"]*${escape(name)}"[^>]*></script>`), () => `<script type="module">${code}</script>`);
           delete bundle[name];
         } else if (name.endsWith('.css')) {
@@ -44,7 +46,9 @@ export default defineConfig(({ mode }) => {
   const local = mode === 'standalone';
   return {
     base: './',
-    plugins: [react(), local && inlineIntoHtml()],
+    plugins: [react(), vtracerWeb(), local && inlineIntoHtml()],
+    // 圖片向量化的 Web Worker 也需要 vtracer 轉換外掛
+    worker: { format: 'iife', plugins: () => [vtracerWeb()] },
     server: { port: 5173, open: true },
     preview: { port: 4173 },
     build: local
@@ -54,7 +58,9 @@ export default defineConfig(({ mode }) => {
         copyPublicDir: false, // favicon 改為內嵌，避免多出檔案
         assetsInlineLimit: Number.MAX_SAFE_INTEGER,
         cssCodeSplit: false,
-        chunkSizeWarningLimit: 2000,
+        chunkSizeWarningLimit: 4000,
+        // 單一檔案：動態載入的頁面也一併內嵌
+        rollupOptions: { output: { codeSplitting: false } },
       }
       : {
         outDir: 'dist',

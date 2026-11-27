@@ -138,6 +138,36 @@ npm run test:e2e           # 以模擬後端建置並執行冒煙測試（不會
 - **停用 / 強制登出**：資料庫 RLS 會檢查登入工作階段（auth.sessions），停用或強制登出後立即無法存取資料。前端每 60 秒及切回分頁時也會檢查，並自動登出。
 - **變更 Email**：在「帳號設定 → 變更 Email」輸入新 Email 和目前密碼，系統會寄出確認信，點擊信中連結後才會生效。若 Supabase 開啟了 Secure email change，新舊兩個信箱都必須確認。
 
+## 文件工具 › 圖片向量化
+
+左側選單「文件工具 › 圖片向量化」（`#vectorize`）：把 PNG、JPG、WEBP 轉成真正由向量路徑組成的 SVG，類似 Illustrator 的「影像描圖」。圖片只在瀏覽器內處理，不會上傳到任何伺服器。
+
+**功能**
+- 彩色、灰階、黑白三種模式；可設定顏色數量（2–64 或自動）、灰階層數、黑白閾值（可自動判斷）
+- 細節程度、輪廓平滑、雜訊去除三個滑桿；保留透明背景、忽略白色
+- 快速預設：標誌與圖示、插畫、照片、灰階、黑白線稿
+- 拖曳或貼上圖片、左右分割比較（同步縮放與拖曳、滾輪或雙指縮放、雙擊符合視窗）、填色／外框檢視
+- 進度與各階段處理時間、可取消、下載 SVG 或複製程式碼
+
+**架構**（`src/features/vectorize/`，引擎與 UI 分離）
+
+| 檔案 | 用途 |
+|---|---|
+| `engine/params.js` | 介面參數 → 前處理設定與 VTracer 選項、預設集 |
+| `engine/image.js` | 檔案驗證、解碼、Canvas 等比例縮放（主執行緒） |
+| `engine/preprocess.js` | 透明度整理、去雜訊、k-means 顏色量化、灰階、Otsu 黑白（Worker） |
+| `engine/vectorize.worker.js` | Web Worker：前處理 → VTracer（WebAssembly）→ SVGO |
+| `engine/svg.js` | 補 viewBox、還原原圖尺寸、SVGO 最佳化路徑、統計 |
+| `engine/VectorizerClient.js` | Worker 管理、進度、取消、結果快取（相同圖片與參數不重算） |
+| `components/` | 參數面板、比較預覽 |
+| `pages/tools/VectorizePage.jsx` | 頁面（延後載入，不影響其他頁面的載入速度） |
+
+- 向量化引擎：[`@visioncortex/vtracer`](https://github.com/visioncortex/vtracer)（MIT / Apache-2.0）。官方套件只提供 Node.js 版，`vite/vtracerWeb.js` 在建置時把它轉成瀏覽器 ES 模組（`virtual:vtracer`），演算法本體使用官方 wasm 不做修改。
+- SVG 最佳化：[SVGO](https://github.com/svg/svgo) 瀏覽器版。
+- 大圖會先等比例縮小到「最大處理尺寸」（預設 2000 px）再描圖，輸出的 SVG 仍保留原圖寬高與比例（`width`/`height` 為原圖尺寸，`viewBox` 為處理尺寸）。
+- 取消：VTracer 是同步運算，取消時直接終止 Worker，下次轉換再重新建立。
+- 輸出只含 `<path>`（關閉透明背景的黑白模式另有一個白色 `<rect>` 背景），不含內嵌點陣圖，可用 Illustrator、Figma 開啟編輯。
+
 ## 部署到 GitHub Pages
 
 1. 在 GitHub 建立 repository，把專案推送到 `main` 分支。

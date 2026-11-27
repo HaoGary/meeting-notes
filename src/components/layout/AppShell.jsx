@@ -15,6 +15,7 @@ import ShieldOutlined from '@mui/icons-material/ShieldOutlined';
 import LogoutOutlined from '@mui/icons-material/LogoutOutlined';
 import ManageAccountsOutlined from '@mui/icons-material/ManageAccountsOutlined';
 import PeopleAltOutlined from '@mui/icons-material/PeopleAltOutlined';
+import PolylineOutlined from '@mui/icons-material/PolylineOutlined';
 import { useDevice } from '../../hooks/useDevice';
 
 export const APPBAR_H = 56;
@@ -25,6 +26,9 @@ const MINI_W = 68;
 export const NAV = [
   { section: '會議管理', items: [
     { key: 'meetings', label: '會議紀錄', icon: EventNoteOutlined, match: ['meetings', 'meeting'] },
+  ] },
+  { section: '文件工具', items: [
+    { key: 'vectorize', label: '圖片向量化', icon: PolylineOutlined },
   ] },
   { section: '系統設定', items: [
     { key: 'accounts', label: '帳號管理', icon: PeopleAltOutlined, perm: 'system.accounts' },

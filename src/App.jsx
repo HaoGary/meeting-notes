@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, CircularProgress, Stack, Typography } from '@mui/material';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Button, CircularProgress, Stack, Typography } from '@mui/material';
 import LockOutlined from '@mui/icons-material/LockOutlined';
 import { createApi, devLogin, devUsers, resetDb, simulateOtherUserEdit } from './services/api';
 import { features } from './services/config';
@@ -23,6 +23,8 @@ import SharePage from './pages/meetings/SharePage';
 import NewMeetingDialog from './components/meetings/NewMeetingDialog';
 import DemoPanel from './dev/DemoPanel';
 import { AppDialog, useToast } from './components/common/ui';
+// 圖片向量化含 WebAssembly 引擎，延後到進入頁面時才載入
+const VectorizePage = lazy(() => import('./pages/tools/VectorizePage'));
 import { AUTH_PAGES, HOME, PENDING_EMAIL, PUBLIC_PAGES, parseHash, toHash } from './router/hashRoutes';
 
 export default function App() {
@@ -272,6 +274,9 @@ export default function App() {
       {route.page === 'accounts' && (can('system.accounts')
         ? <AccountsPage key={currentUser.id + reloadKey} api={api} currentUser={currentUser} canSetRole={can('system.permissions')} />
         : noAccess('帳號管理'))}
+      {route.page === 'vectorize' && (
+        <Suspense fallback={<Box sx={{ p: 3 }}><CircularProgress size={24} /></Box>}><VectorizePage /></Suspense>
+      )}
       {route.page === 'account' && <AccountSettingsPage key={currentUser.id} api={api} user={currentUser} onUpdated={() => { loadMe(); }} />}
 
       <NewMeetingDialog open={newOpen} onClose={() => setNewOpen(false)} onCreate={create} />
