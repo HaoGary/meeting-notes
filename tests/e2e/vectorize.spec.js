@@ -71,9 +71,34 @@ test('可取消轉換', async ({ page }) => {
   const cancel = page.getByRole('button', { name: '取消', exact: true });
   await expect(cancel).toBeVisible();
   await cancel.click();
-  await expect(page.getByText('已取消轉換')).toBeVisible();
+  await expect(page.getByText('已取消轉換').first()).toBeVisible();
+  await expect(page.getByText('產生中…')).toHaveCount(0);
   await expect(page.getByText('參數已變更').or(page.getByRole('button', { name: '重新產生' }))).toBeVisible();
   // 取消後可重新產生
   await page.getByRole('button', { name: '重新產生' }).click();
   await expect(page.getByTestId('vectorize-stats')).toBeVisible({ timeout: 30_000 });
+});
+
+test('已有圖片時選到不支援的檔案：保留目前結果，只提示錯誤', async ({ page }) => {
+  await openTool(page);
+  const stats = page.getByTestId('vectorize-stats');
+  await page.getByTestId('vectorize-file').setInputFiles(fixture('logo.png'));
+  await expect(stats).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId('vectorize-file').setInputFiles({ name: 'x.gif', mimeType: 'image/gif', buffer: Buffer.from('GIF89a') });
+  await expect(page.getByText(/不支援的檔案格式/)).toBeVisible();
+  await expect(stats).toBeVisible();
+  await expect(page.getByText('480×320')).toBeVisible();
+});
+
+test('關閉自動更新時標示參數已變更，重新開啟後自動更新', async ({ page }) => {
+  await openTool(page);
+  const stats = page.getByTestId('vectorize-stats');
+  await page.getByTestId('vectorize-file').setInputFiles(fixture('photo.jpg'));
+  await expect(stats).toBeVisible({ timeout: 30_000 });
+  await page.getByLabel('調整參數後自動更新').uncheck();
+  await page.getByRole('group', { name: '色彩模式' }).getByRole('button', { name: '黑白' }).click();
+  await expect(page.getByText('參數已變更')).toBeVisible();
+  await page.getByLabel('調整參數後自動更新').check();
+  await expect(page.getByText('參數已變更')).toHaveCount(0, { timeout: 30_000 });
+  await expect(stats).toContainText(/顏色 [12]\b/);
 });

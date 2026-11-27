@@ -13,7 +13,7 @@ import PageHeader from '../../components/common/PageHeader';
 import { useToast } from '../../components/common/ui';
 import CompareViewer from '../../features/vectorize/components/CompareViewer';
 import ParamsPanel from '../../features/vectorize/components/ParamsPanel';
-import { DEFAULT_PARAMS } from '../../features/vectorize/engine/params';
+import { DEFAULT_PARAMS, MAX_SIZES, MODES } from '../../features/vectorize/engine/params';
 import { ACCEPT, MAX_FILE_MB, loadImageFile, releaseImage } from '../../features/vectorize/engine/image';
 import { STAGES, VectorizerClient } from '../../features/vectorize/engine/VectorizerClient';
 
@@ -21,15 +21,32 @@ const fmtBytes = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(2)} MB` : `${Ma
 const fmtMs = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(2)} 秒` : `${Math.round(ms)} ms`);
 const PARAMS_KEY = 'mn-vectorize-params';
 
+// 讀回上次的參數：只接受型別正確、在範圍內的值（舊版或被竄改的資料一律改用預設）
 function loadParams() {
-  try { return { ...DEFAULT_PARAMS, ...JSON.parse(localStorage.getItem(PARAMS_KEY) || '{}') }; } catch { return DEFAULT_PARAMS; }
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(PARAMS_KEY) || '{}') || {}; } catch { /* 使用預設 */ }
+  const num = (v, lo, hi, d) => (Number.isFinite(v) && v >= lo && v <= hi ? Math.round(v) : d);
+  const bool = (v, d) => (typeof v === 'boolean' ? v : d);
+  const D = DEFAULT_PARAMS;
+  return {
+    mode: Object.keys(MODES).includes(saved.mode) ? saved.mode : D.mode,
+    colors: num(saved.colors, 0, 64, D.colors) === 1 ? 2 : num(saved.colors, 0, 64, D.colors),
+    grays: num(saved.grays, 2, 32, D.grays),
+    threshold: num(saved.threshold, 1, 254, D.threshold),
+    autoThreshold: bool(saved.autoThreshold, D.autoThreshold),
+    detail: num(saved.detail, 0, 100, D.detail),
+    smooth: num(saved.smooth, 0, 100, D.smooth),
+    noise: num(saved.noise, 0, 100, D.noise),
+    transparent: bool(saved.transparent, D.transparent),
+    ignoreWhite: bool(saved.ignoreWhite, D.ignoreWhite),
+    maxSize: MAX_SIZES.includes(saved.maxSize) ? saved.maxSize : D.maxSize,
+  };
 }
 
-function DropZone({ onFile, dragging }) {
-  const inputRef = useRef(null);
+function DropZone({ onPick, dragging }) {
   return (
-    <Box role="button" tabIndex={0} onClick={() => inputRef.current?.click()}
-      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), inputRef.current?.click())}
+    <Box role="button" tabIndex={0} onClick={onPick}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onPick())}
       aria-label="選擇或拖曳圖片"
       sx={{ flex: 1, minHeight: 320, m: { xs: 1.5, md: 3 }, borderRadius: 3, border: '2px dashed', borderColor: dragging ? 'primary.main' : 'divider',
         bgcolor: dragging ? 'primary.light' : 'background.paper', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
@@ -44,8 +61,6 @@ function DropZone({ onFile, dragging }) {
           <LockOutlined sx={{ fontSize: 14 }} />圖片只在你的瀏覽器中處理，不會上傳到任何伺服器
         </Stack>
       </Stack>
-      <input ref={inputRef} type="file" hidden accept={ACCEPT.join(',')} data-testid="vectorize-file"
-        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onFile(f); }} />
     </Box>
   );
 }
@@ -69,8 +84,12 @@ export default function VectorizePage() {
   const fileInput = useRef(null);
   const imageRef = useRef(null);
   imageRef.current = image;
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
 
-  useEffect(() => () => { client.dispose(); releaseImage(imageRef.current); }, [client]);
+  useEffect(() => () => client.dispose(), [client]);
+  // 換圖或離開頁面時才釋放舊圖片（先換上新圖再釋放，預覽不會閃出破圖）
+  useEffect(() => () => releaseImage(image), [image]);
   useEffect(() => { try { localStorage.setItem(PARAMS_KEY, JSON.stringify(params)); } catch {} }, [params]);
 
   // 處理中顯示經過時間
@@ -83,6 +102,7 @@ export default function VectorizePage() {
   const run = useCallback(async (img, p) => {
     if (!img) return;
     setError(null);
+    const current = () => img === imageRef.current; // 結果回來時圖片可能已經更換
     const hit = client.cached(img, p);
     if (hit) { if (client.pending) client.cancel(); setJob(null); setResult({ ...hit, cached: true }); setStale(false); return; }
     const started = performance.now();
@@ -90,11 +110,12 @@ export default function VectorizePage() {
     setElapsed(0);
     try {
       const r = await client.run(img, p, { onProgress: (stage, pct) => setJob((j) => j && { ...j, stage, pct }) });
+      if (!current()) return;
       setResult(r);
       setStale(false);
       setJob(null);
     } catch (e) {
-      if (e.code === 'CANCELLED') return; // 取消或被新的工作取代：由發起者處理狀態
+      if (e.code === 'CANCELLED' || !current()) return; // 取消或被新的工作取代：由發起者處理狀態
       setJob(null);
       setError(e.message || '轉換失敗');
     }
@@ -109,14 +130,15 @@ export default function VectorizePage() {
     setJob(null);
     try {
       const img = await loadImageFile(file);
-      releaseImage(imageRef.current);
+      imageRef.current = img;
       setImage(img);
       setResult(null);
       setError(null);
-      run(img, params);
+      setStale(false);
+      run(img, paramsRef.current);
     } catch (e) {
-      setError(e.message);
-      if (!imageRef.current) setImage(null);
+      // 已有圖片時保留目前的結果，只提示這個檔案無法使用
+      if (imageRef.current) toast(e.message, 'error'); else setError(e.message);
     }
   };
 
@@ -126,9 +148,15 @@ export default function VectorizePage() {
     if (firstParams.current) { firstParams.current = false; return undefined; }
     if (!image) return undefined;
     if (!autoRun) { setStale(!client.cached(image, params)); return undefined; }
-    const t = setTimeout(() => run(image, params), 350);
+    // 計時器觸發時讀取「當下」的圖片與參數，避免期間換圖後又用舊圖重算
+    const t = setTimeout(() => run(imageRef.current, paramsRef.current), 350);
     return () => clearTimeout(t);
   }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 重新開啟自動更新時，若結果已過期就立即更新
+  useEffect(() => {
+    if (autoRun && stale && imageRef.current && !client.pending) run(imageRef.current, paramsRef.current);
+  }, [autoRun]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 拖曳上傳（整個頁面）與貼上
   useEffect(() => {
@@ -170,12 +198,12 @@ export default function VectorizePage() {
             <Button variant="contained" startIcon={<FileDownloadOutlined />} disabled={!result || busy} onClick={download}>下載 SVG</Button>
           </>
         )} />
-      <input ref={fileInput} type="file" hidden accept={ACCEPT.join(',')} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) openFile(f); }} />
+      <input ref={fileInput} type="file" hidden accept={ACCEPT.join(',')} data-testid="vectorize-file" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) openFile(f); }} />
 
       {!image ? (
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           {error && <Alert severity="error" sx={{ mx: { xs: 1.5, md: 3 } }} onClose={() => setError(null)}>{error}</Alert>}
-          <DropZone onFile={openFile} dragging={dragging} />
+          <DropZone onPick={() => fileInput.current?.click()} dragging={dragging} />
         </Box>
       ) : (
         <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, borderTop: 1, borderColor: 'divider' }}>
@@ -202,10 +230,10 @@ export default function VectorizePage() {
             {busy && <LinearProgress variant="determinate" value={job.pct} sx={{ height: 3 }} aria-label="轉換進度" />}
 
             <CompareViewer originalUrl={image.url} svg={result?.svg} width={image.width} height={image.height} busy={busy} layout={layout}
-              emptySvg={!busy && error ? null : (
-                <Stack alignItems="center" justifyContent="center" sx={{ position: 'absolute', inset: 0, color: 'text.disabled', gap: 1 }}>
-                  <CircularProgress size={28} />
-                  <Typography fontSize={13}>產生中…</Typography>
+              emptySvg={(busy || !error) && (
+                <Stack alignItems="center" justifyContent="center" sx={{ position: 'absolute', inset: 0, color: 'text.disabled', gap: 1, pointerEvents: 'none' }}>
+                  {busy ? <><CircularProgress size={28} /><Typography fontSize={13}>產生中…</Typography></>
+                    : <Typography fontSize={13}>已取消轉換，按「重新產生」再試一次</Typography>}
                 </Stack>
               )} />
 

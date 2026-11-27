@@ -1,6 +1,6 @@
 // 左右分割預覽：原始圖片 | SVG。兩邊同步縮放與拖曳（滑鼠滾輪、拖曳、觸控雙指縮放）。
 // 以改變圖片的版面尺寸（而非 CSS scale）來縮放，SVG 放大時會重新繪製，保持清晰。
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Box, IconButton, Stack, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material';
 import Add from '@mui/icons-material/Add';
 import Remove from '@mui/icons-material/Remove';
@@ -21,12 +21,14 @@ export default function CompareViewer({ originalUrl, svg, width, height, busy, l
   const pointers = useRef(new Map());
 
   // SVG 以 Blob URL 搭配 <img> 顯示（不直接插入 DOM，避免執行任何內嵌內容）
-  const svgUrl = useMemo(() => {
-    if (!svg) return null;
+  const [svgUrl, setSvgUrl] = useState(null);
+  useEffect(() => {
+    if (!svg) { setSvgUrl(null); return undefined; }
     const src = fill === 'outline' ? svg.replace(/<svg\b[^>]*>/, (m) => m + OUTLINE_STYLE) : svg;
-    return URL.createObjectURL(new Blob([src], { type: 'image/svg+xml' }));
+    const url = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml' }));
+    setSvgUrl(url);
+    return () => URL.revokeObjectURL(url);
   }, [svg, fill]);
-  useEffect(() => () => svgUrl && URL.revokeObjectURL(svgUrl), [svgUrl]);
 
   const fit = useCallback(() => {
     const el = paneRef.current;

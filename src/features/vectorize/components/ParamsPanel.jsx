@@ -16,7 +16,7 @@ function Section({ title, children }) {
 }
 
 // 拖曳時只更新畫面，放開後才送出（避免拖曳過程中重複運算）
-function ParamSlider({ label, hint, value, onCommit, min = 0, max = 100, step = 1, format = (v) => v, disabled, marks }) {
+function ParamSlider({ label, hint, value, onCommit, min = 0, max = 100, step = 1, format = (v) => v, disabled, marks, normalize = (x) => x }) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
   const id = `vz-${label}`;
@@ -29,7 +29,7 @@ function ParamSlider({ label, hint, value, onCommit, min = 0, max = 100, step = 
         <Typography fontSize={13} color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{format(v)}</Typography>
       </Stack>
       <Slider size="small" value={v} min={min} max={max} step={step} marks={marks} disabled={disabled}
-        onChange={(_, x) => setV(x)} onChangeCommitted={(_, x) => x !== value && onCommit(x)}
+        onChange={(_, x) => setV(normalize(x))} onChangeCommitted={(_, x) => normalize(x) !== value && onCommit(normalize(x))}
         slotProps={{ input: { 'aria-labelledby': id } }} sx={{ mt: -0.25, py: 1.25 }} />
     </Box>
   );
@@ -70,7 +70,7 @@ export default function ParamsPanel({ params, onChange, result, image }) {
           {params.mode === 'color' && (
             <>
               <ParamSlider label="顏色數量" hint="輸出 SVG 使用的顏色數。數量越少越簡潔，越多越接近原圖。"
-                value={params.colors || 0} min={0} max={64} onCommit={(v) => set({ colors: v === 1 ? 2 : v })}
+                value={params.colors || 0} min={0} max={64} normalize={(x) => (x === 1 ? 2 : x)} onCommit={(v) => set({ colors: v })}
                 format={(v) => (v === 0 ? '自動' : `${v} 色`)} />
               {params.colors === 0 && <Typography fontSize={12} color="text.disabled" mt={-0.75} mb={1}>自動：由引擎依細節程度合併相近顏色</Typography>}
             </>
@@ -80,7 +80,7 @@ export default function ParamsPanel({ params, onChange, result, image }) {
           )}
           {params.mode === 'bw' && (
             <>
-              <Toggle label="自動判斷黑白分界" hint="以 Otsu 演算法依圖片亮度分布自動決定" checked={params.autoThreshold} onChange={(v) => set({ autoThreshold: v })} />
+              <Toggle label="自動判斷黑白分界" hint="以 Otsu 演算法依圖片亮度分布自動決定" checked={params.autoThreshold} onChange={(v) => set({ autoThreshold: v, ...(!v && result?.info?.threshold ? { threshold: result.info.threshold } : {}) })} />
               <ParamSlider label="黑白閾值" hint="亮度低於此值的區域會變成黑色" disabled={params.autoThreshold}
                 value={params.autoThreshold && result?.info?.threshold ? result.info.threshold : params.threshold} min={1} max={254}
                 onCommit={(v) => set({ threshold: v })} />
