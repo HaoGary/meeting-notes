@@ -148,6 +148,10 @@ function log(meetingId, userId, action) {
 function audit(userId, action) {
   db.auditLogs.unshift({ id: uid('a'), userId, action, at: Date.now() });
 }
+// ── 即時更新（預覽：同一個分頁內的事件匯流排，模擬 Supabase Realtime） ──
+const bus = new Set();
+function emit(e) { setTimeout(() => bus.forEach((f) => { try { f(e); } catch { /* ignore */ } }), 0); }
+
 function touch(meetingId) {
   const m = db.meetings.find((x) => x.id === meetingId);
   if (m) m.updatedAt = Date.now();
@@ -226,6 +230,13 @@ export function createApi(getToken, { onUnauthorized } = {}) {
       });
     },
 
+    async getContent(id) {
+      await delay(150);
+      const u = (await me());
+      assertCan(u, id, 'view');
+      return clone(db.content[id]);
+    },
+
     async createMeeting(data) {
       await delay();
       maybeFail();
@@ -242,6 +253,7 @@ export function createApi(getToken, { onUnauthorized } = {}) {
       db.content[m.id] = { version: 1, doc: data.doc, updatedAt: now, updatedBy: u.id };
       log(m.id, u.id, '建立會議');
       persist();
+      emit({ type: 'meeting', id: m.id });
       return clone(m);
     },
 
@@ -262,6 +274,7 @@ export function createApi(getToken, { onUnauthorized } = {}) {
       if ('status' in patch) log(id, u.id, `變更狀態為「${{ draft: '草稿', done: '已完成', archived: '已封存' }[patch.status]}」`);
       else log(id, u.id, '修改會議資料');
       persist();
+      emit({ type: 'meeting', id, meeting: clone(m), by: u.id });
       return clone(m);
     },
 
@@ -276,6 +289,7 @@ export function createApi(getToken, { onUnauthorized } = {}) {
       db.shares = db.shares.filter((x) => x.meetingId !== id); // 刪除會議時一併失效分享連結
       delete db.content[id];
       persist();
+      emit({ type: 'deleted', id });
       return { ok: true };
     },
 
@@ -288,6 +302,7 @@ export function createApi(getToken, { onUnauthorized } = {}) {
       touch(id);
       log(id, u.id, '更新參與人員');
       persist();
+      emit({ type: 'attendees', id });
       return clone(db.attendees.filter((x) => x.meetingId === id));
     },
 
@@ -308,6 +323,7 @@ export function createApi(getToken, { onUnauthorized } = {}) {
         last.action = label; last.at = Date.now();
       } else log(id, u.id, label);
       persist();
+      emit({ type: 'content', id, version: next.version, updatedBy: u.id });
       return { version: next.version, updatedAt: next.updatedAt };
     },
 
@@ -433,6 +449,24 @@ export function createApi(getToken, { onUnauthorized } = {}) {
         persist();
         return { ok: true };
       },
+      // 預覽：驗證密碼後直接變更（正式版會先寄確認信）
+      async requestEmailChange({ email, password }) {
+        await delay(500);
+        maybeFail();
+        const u = await me();
+        const next = String(email || '').trim().toLowerCase();
+        const fields = {};
+        if (!EMAIL_RE.test(next)) fields.email = 'Email 格式不正確';
+        else if (next === u.email.toLowerCase()) fields.email = '與目前的 Email 相同';
+        else if (db.users.some((x) => x.id !== u.id && x.email.toLowerCase() === next)) fields.email = '此 Email 已被其他帳號使用';
+        if (!password) fields.password = '請輸入目前密碼';
+        if (Object.keys(fields).length) throw new ApiError(422, '資料格式有誤', { code: 'VALIDATION', fields });
+        if (!(await verifyPassword(password, u))) throw new ApiError(422, '目前密碼不正確', { code: 'WRONG_PASSWORD', fields: { password: '目前密碼不正確' } });
+        const prev = u.email; u.email = next;
+        sendMail(prev, '您的 Email 已變更', `${u.name} 您好，\n\n您的帳號 Email 已由 ${prev} 變更為 ${next}。若這不是您本人的操作，請立即聯絡系統管理員。`);
+        persist();
+        return { pending: false, email: next, current: prev };
+      },
       async listSessions() {
         await delay(200);
         const u = await me();
@@ -458,6 +492,33 @@ export function createApi(getToken, { onUnauthorized } = {}) {
         persist();
         return { count: before - 1 };
       },
+    },
+
+    // 帳號停用、或這台裝置被登出時回傳 false
+    async sessionOk() {
+      // 其他分頁（例如另一台「裝置」）可能已撤銷登入，先同步儲存的 session 與帳號狀態
+      try { const raw = localStorage.getItem(KEY); if (raw) { const f = JSON.parse(raw); db.sessions = f.sessions; db.users = f.users; } } catch { /* ignore */ }
+      const token = getToken();
+      if (!token) return false;
+      const h = await sha256(token);
+      const sess = db.sessions.find((x) => x.tokenHash === h && x.expiresAt > Date.now());
+      const u = sess && db.users.find((x) => x.id === sess.userId);
+      return !!(u && u.active);
+    },
+
+    realtime: {
+      onMeetingsChange(cb) { const f = (e) => { if (['meeting', 'deleted', 'attendees'].includes(e.type)) cb(); }; bus.add(f); return () => bus.delete(f); },
+      watchMeeting(id, { onContent, onMeeting, onAttendees, onDeleted }) {
+        const f = (e) => {
+          if (e.id !== id) return;
+          if (e.type === 'content') onContent?.({ version: e.version, updatedBy: e.updatedBy });
+          else if (e.type === 'meeting' && e.meeting) onMeeting?.(e.meeting);
+          else if (e.type === 'attendees') onAttendees?.();
+          else if (e.type === 'deleted') onDeleted?.();
+        };
+        bus.add(f); return () => bus.delete(f);
+      },
+      presence(_id, _me, onSync) { onSync([]); return () => {}; }, // 預覽只有自己
     },
 
     // ── 通知（預覽：示範資料存在記憶體） ──
@@ -890,5 +951,6 @@ export function simulateOtherUserEdit(meetingId, userId = 'u2') {
   log(meetingId, userId, `編輯內容（版本 ${cur.version + 1}）`);
   touch(meetingId);
   persist();
+  emit({ type: 'content', id: meetingId, version: cur.version + 1, updatedBy: userId });
   return true;
 }

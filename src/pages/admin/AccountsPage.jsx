@@ -76,7 +76,7 @@ function AccountDialog({ open, onClose, api, roles, canSetRole, editing, onSaved
             <Box>
               <Typography fontSize={13} fontWeight={600} mb={0.5}>設定密碼方式</Typography>
               <RadioGroup value={form.values.method} onChange={(e) => form.setValue('method', e.target.value)}>
-                <FormControlLabel value="invite" control={<Radio size="small" />} label={<Box><Typography fontSize={14}>寄送邀請信（建議）</Typography><Typography fontSize={12} color="text.disabled">使用者透過信中連結自行設定密碼，72 小時內有效</Typography></Box>} sx={{ mb: 0.75 }} />
+                <FormControlLabel value="invite" control={<Radio size="small" />} label={<Box><Typography fontSize={14}>寄送邀請信（建議）</Typography><Typography fontSize={12} color="text.disabled">使用者透過信中連結自行設定密碼（連結有使用期限）</Typography></Box>} sx={{ mb: 0.75 }} />
                 <FormControlLabel value="temp" control={<Radio size="small" />} label={<Box><Typography fontSize={14}>產生臨時密碼</Typography><Typography fontSize={12} color="text.disabled">由您轉告使用者，首次登入時須變更密碼</Typography></Box>} />
               </RadioGroup>
             </Box>
@@ -95,7 +95,7 @@ function TempPasswordDialog({ data, onClose }) {
   const copy = async () => { try { await navigator.clipboard.writeText(data.tempPassword); toast('已複製臨時密碼'); } catch { toast('請手動選取並複製', 'info'); } };
   return (
     <AppDialog open title="臨時密碼" onClose={onClose} actions={<Button variant="contained" onClick={onClose}>我已記下</Button>}>
-      <Typography mb={2}>請將以下臨時密碼轉告「{data.user.name}」（帳號：{data.user.username}）。對方登入後須立即設定新密碼。</Typography>
+      <Typography mb={2}>請將以下臨時密碼轉告「{data.user.name}」（登入{features.usernameLogin ? `帳號：${data.user.username}` : ` Email：${data.user.email}`}）。對方登入後須立即設定新密碼。</Typography>
       <TextField fullWidth value={data.tempPassword} onFocus={(e) => e.target.select()}
         slotProps={{ input: { readOnly: true, sx: { fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 18, letterSpacing: '.08em' },
           endAdornment: <InputAdornment position="end"><Button size="small" startIcon={<ContentCopy sx={{ fontSize: '15px !important' }} />} onClick={copy}>複製</Button></InputAdornment> } }} />

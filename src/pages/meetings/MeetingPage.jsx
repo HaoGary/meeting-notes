@@ -80,6 +80,53 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
     return () => window.removeEventListener('beforeunload', h);
   }, [content, meta]);
 
+  // ── 即時同步：他人更新內容、基本資料、參與人員或刪除會議時自動反映 ──
+  const [remote, setRemote] = useState(null);   // 我有未儲存修改時，他人更新的版本 { by, version }
+  const [viewers, setViewers] = useState([]);   // 同時在檢視此會議的其他人
+  const live = useRef({});
+  live.current = { content, meta, users, currentUser };
+  const loaded = !!data;
+
+  const reloadContent = useCallback(async (by, { force = false } = {}) => {
+    try {
+      const c = await api.getContent(meetingId);
+      if (!force && c.version <= versionRef.current) return;
+      live.current.content.discard();
+      versionRef.current = c.version;
+      setData((d) => d && { ...d, content: c });
+      setEditorKey((k) => k + 1);
+      setRemote(null);
+      const name = live.current.users.find((u) => u.id === (by || c.updatedBy))?.name;
+      toast(name ? `${name} 更新了內容，已載入最新版本` : '已載入最新版本', 'info');
+    } catch { /* 下次存檔時仍會偵測衝突 */ }
+  }, [api, meetingId, toast]);
+
+  useEffect(() => {
+    if (!loaded || !api.realtime) return undefined;
+    const refreshAccess = () => api.getMeeting(meetingId).then((r) => setData((d) => d && {
+      ...d, attendees: r.attendees, permission: r.permission, canArchive: r.canArchive, canShare: r.canShare, canDelete: r.canDelete,
+      meeting: live.current.meta.isDirty() ? d.meeting : r.meeting,
+    })).catch((e) => { if (e.status === 403 || e.status === 404) { live.current.content.discard(); live.current.meta.discard(); setError(e); } });
+    return api.realtime.watchMeeting(meetingId, {
+      onContent: ({ version, updatedBy }) => {
+        if (updatedBy === live.current.currentUser?.id || version <= versionRef.current) return;
+        if (live.current.content.isDirty()) setRemote({ by: updatedBy, version });
+        else reloadContent(updatedBy);
+      },
+      onMeeting: (m) => { if (!live.current.meta.isDirty()) setData((d) => d && { ...d, meeting: { ...d.meeting, ...m } }); },
+      onAttendees: refreshAccess,
+      onDeleted: () => { live.current.content.discard(); live.current.meta.discard(); setError({ status: 404, message: '此會議已被其他人刪除。' }); },
+    });
+  }, [loaded, api, meetingId, reloadContent]);
+
+  useEffect(() => {
+    if (!loaded || !api.realtime || !currentUser) return undefined;
+    return api.realtime.presence(meetingId, currentUser, setViewers);
+  }, [loaded, api, meetingId, currentUser]);
+
+  // 我的修改已存檔（或已處理衝突）後，提示自動消失
+  useEffect(() => { if (remote && (content.status === 'conflict' || versionRef.current >= remote.version)) setRemote(null); });
+
   const onUploadImage = useCallback((file) => api.uploadImage(meetingId, file), [api, meetingId]);
 
   const backBtn = <Tooltip title="返回列表"><IconButton onClick={onBack} aria-label="返回會議列表" edge="start" sx={{ alignSelf: 'center' }}><ArrowBack /></IconButton></Tooltip>;
@@ -183,6 +230,14 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
 
         <Box flex={1} />
 
+        {viewers.length > 0 && (
+          <Tooltip title={`也在檢視：${viewers.map((v) => v.name).join('、')}`}>
+            <AvatarGroup max={3} aria-label={`也在檢視：${viewers.map((v) => v.name).join('、')}`}
+              sx={{ mr: 0.5, '& .MuiAvatar-root': { width: 26, height: 26, fontSize: 11, borderWidth: 2 } }}>
+              {viewers.map((v) => <UserAvatar key={v.id} user={v} size={26} />)}
+            </AvatarGroup>
+          </Tooltip>
+        )}
         <Tooltip title={`最後更新：${fmtRel(meeting.updatedAt)}`}>
           <Box sx={{ display: 'flex' }}><SaveStatus {...status} onRetry={retryAll} /></Box>
         </Tooltip>
@@ -220,6 +275,12 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
         <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <MeetingMeta meeting={meeting} attendees={attendees} users={users} editable={canEdit}
             onChange={onMetaChange} onAttendees={setAttendees} collapsed={metaCollapsed} onToggle={toggleMeta} />
+          {remote && (
+            <Alert severity="info" sx={{ borderRadius: 0, py: 0.25 }}
+              action={<Button color="inherit" size="small" onClick={() => reloadContent(remote.by, { force: true })}>載入最新版本</Button>}>
+              {users.find((u) => u.id === remote.by)?.name || '其他人'} 剛更新了這份紀錄。你有尚未儲存的修改，儲存時會請你選擇保留哪個版本；也可以放棄你的修改、直接載入最新版本。
+            </Alert>
+          )}
           <RichEditor key={`${meetingId}-${editorKey}`} initialContent={data.content.doc} editable={canEdit}
             onChange={(doc) => content.schedule(doc)} onSave={() => content.flush()}
             onUploadImage={onUploadImage} onError={(m) => toast(m, 'error')} placeholder="在此輸入會議內容…" speechToText tidy aiPolish onNotify={toast} />

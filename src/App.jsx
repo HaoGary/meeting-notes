@@ -67,7 +67,7 @@ export default function App() {
   signedOutRef.current = () => { if (tokenRef.current) endSession(null, false); };
   unauthorizedRef.current = (e) => {
     if (!tokenRef.current) return;
-    endSession({ severity: 'warning', msg: e.code === 'ACCOUNT_DISABLED' ? e.message : '登入已逾時或已在其他地方登出，請重新登入' }, true, me?.user?.username);
+    endSession({ severity: 'warning', msg: ['ACCOUNT_DISABLED', 'SESSION_REVOKED'].includes(e.code) ? e.message : '登入已逾時或已在其他地方登出，請重新登入' }, true, me?.user?.username);
   };
 
   const loadMe = useCallback(async () => {
@@ -79,11 +79,46 @@ export default function App() {
       return true;
     } catch { return false; }
   }, [api]);
-  const loadList = useCallback(async () => {
-    setLoading(true);
-    try { setMeetings(await api.listMeetings()); } catch (e) { if (e.status !== 401) toast(e.message, 'error'); }
-    setLoading(false);
+  // silent：背景更新（例如收到他人變動通知），不顯示載入中、失敗也不跳提示
+  const loadList = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    try { setMeetings(await api.listMeetings()); } catch (e) { if (e.status !== 401 && !silent) toast(e.message, 'error'); }
+    if (!silent) setLoading(false);
   }, [api, toast]);
+
+  // ── 登入狀態守門：帳號被停用、或這台裝置被強制登出時立即登出（每分鐘、切回分頁時檢查） ──
+  const signedIn = !!me?.user && !me.user.mustChangePassword;
+  useEffect(() => {
+    if (!signedIn) return undefined;
+    let busy = false;
+    const check = async () => {
+      if (busy || document.visibilityState === 'hidden') return;
+      busy = true;
+      const ok = await api.sessionOk().catch(() => null);
+      busy = false;
+      if (ok === false) unauthorizedRef.current({ code: 'SESSION_REVOKED', message: '你已被登出：帳號已停用，或已從其他裝置登出。如有疑問請聯絡系統管理員。' });
+    };
+    const t = setInterval(check, 60_000);
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', check); window.removeEventListener('focus', check); };
+  }, [signedIn, api]);
+
+  // ── 會議列表即時更新：他人新增、修改、刪除會議或調整參與人員時自動重新整理 ──
+  useEffect(() => {
+    if (!signedIn || !api.realtime) return undefined;
+    let t = null;
+    const off = api.realtime.onMeetingsChange(() => { clearTimeout(t); t = setTimeout(() => loadList({ silent: true }), 600); });
+    return () => { clearTimeout(t); off(); };
+  }, [signedIn, api, loadList]);
+
+  // ── 從信件連結回來的提示（變更 Email） ──
+  useEffect(() => {
+    if (!signedIn) return;
+    let n = null; try { n = sessionStorage.getItem('mn-auth-notice'); sessionStorage.removeItem('mn-auth-notice'); } catch {}
+    if (n === 'email-changed') { toast('Email 已變更，之後請用新的 Email 登入', 'success'); setReloadKey((k) => k + 1); }
+    else if (n === 'email-change-half') toast('已確認其中一個信箱。請到另一個信箱點擊確認連結，完成後 Email 才會變更', 'info');
+  }, [signedIn]); // eslint-disable-line
 
   useEffect(() => {
     if (!token) { setMe(null); return; }
@@ -180,7 +215,7 @@ export default function App() {
         toast(`已登入為 ${u.name}`);
       })}
       onOpenLink={(hash) => { location.hash = hash; }}
-      onSimulateEdit={() => { if (simulateOtherUserEdit(route.id)) toast('林怡君已更新內容。請在編輯器輸入文字，自動儲存時會偵測到衝突', 'info'); }}
+      onSimulateEdit={() => { if (simulateOtherUserEdit(route.id)) toast('已模擬林怡君更新內容', 'info'); }}
       onReset={() => { resetDb(); endSession(null, false); setReloadKey((k) => k + 1); toast('已重置示範資料，請重新登入'); }} />
   );
 

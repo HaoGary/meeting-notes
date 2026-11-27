@@ -10,7 +10,7 @@ import PageHeader from '../../components/common/PageHeader';
 import { AppDialog, UserAvatar, fmtRel, useToast } from '../../components/common/ui';
 import { useForm } from '../../hooks/useForm';
 import { changePasswordSchema, profileSchema } from '../../utils/validators';
-import { PasswordChecklist, PasswordField } from '../../components/auth/AuthForm';
+import { Field, PasswordChecklist, PasswordField } from '../../components/auth/AuthForm';
 
 function Section({ title, desc, children }) {
   return (
@@ -31,8 +31,39 @@ const ReadOnly = ({ label, value, hint }) => (
   </Box>
 );
 
+function EmailDialog({ api, open, onClose, onDone }) {
+  const empty = { email: '', password: '' };
+  const [v, setV] = useState(empty);
+  const [err, setErr] = useState({});
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (open) { setV(empty); setErr({}); } }, [open]); // eslint-disable-line
+  const submit = async (e) => {
+    e?.preventDefault(); setBusy(true); setErr({});
+    try { onDone(await api.account.requestEmailChange(v)); }
+    catch (x) { setErr(x.data?.fields || { form: x.message }); }
+    setBusy(false);
+  };
+  return (
+    <AppDialog open={open} title="變更 Email" onClose={onClose} maxWidth="xs"
+      actions={<><Button color="inherit" onClick={onClose}>取消</Button>
+        <Button variant="contained" onClick={submit} disabled={busy || !v.email || !v.password}
+          startIcon={busy && <CircularProgress size={16} sx={{ color: 'inherit' }} />}>寄送確認信</Button></>}>
+      <Stack component="form" noValidate onSubmit={submit} gap={2} sx={{ pt: 1 }}>
+        <Typography fontSize={13.5}>系統會寄確認信到新的 Email，點擊信中連結後才會生效；之後請用新的 Email 登入。</Typography>
+        <Field id="email-change-new" label="新的 Email" type="email" autoFocus value={v.email} onChange={(e) => setV({ ...v, email: e.target.value })}
+          error={!!err.email} helperText={err.email} placeholder="name@company.com" autoComplete="email" />
+        <PasswordField id="email-change-password" label="目前密碼（確認身分）" value={v.password} onChange={(e) => setV({ ...v, password: e.target.value })}
+          error={!!err.password} helperText={err.password} autoComplete="current-password" />
+        {err.form && <Alert severity="error">{err.form}</Alert>}
+      </Stack>
+    </AppDialog>
+  );
+}
+
 function ProfileSection({ api, user, onUpdated }) {
   const toast = useToast();
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
   const form = useForm({ name: user.name }, profileSchema);
   const dirty = form.values.name.trim() !== user.name;
   const submit = form.handleSubmit(async (v) => {
@@ -56,7 +87,12 @@ function ProfileSection({ api, user, onUpdated }) {
           </Box>
           <ReadOnly label="帳號" value={user.username} hint="帳號無法自行變更" />
           <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
-            <ReadOnly label="Email" value={user.email} hint="如需變更 Email，請聯絡系統管理員" />
+            <Typography fontSize={13} fontWeight={600} mb={1}>Email</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.25} alignItems={{ sm: 'center' }}>
+              <TextField fullWidth value={user.email} disabled slotProps={{ input: { sx: { bgcolor: 'grey.50' } }, htmlInput: { 'aria-label': '目前的 Email' } }} />
+              <Button variant="outlined" onClick={() => setEmailOpen(true)} sx={{ flex: 'none', height: 40 }}>變更 Email</Button>
+            </Stack>
+            {pendingEmail && <Typography fontSize={12.5} color="warning.dark" mt={0.75}>已寄出確認信到 {pendingEmail}，點擊信中連結後才會變更</Typography>}
           </Box>
         </Box>
         <Stack direction="row" justifyContent="flex-end" gap={1}>
@@ -65,6 +101,11 @@ function ProfileSection({ api, user, onUpdated }) {
             startIcon={form.submitting && <CircularProgress size={16} sx={{ color: 'inherit' }} />}>{form.submitting ? '儲存中…' : '儲存變更'}</Button>
         </Stack>
       </Stack>
+      <EmailDialog api={api} open={emailOpen} onClose={() => setEmailOpen(false)} onDone={(r) => {
+        setEmailOpen(false);
+        if (r.pending) { setPendingEmail(r.email); toast(`已寄出確認信到 ${r.email}，請點擊信中連結完成變更`, 'success'); }
+        else { toast('Email 已變更', 'success'); onUpdated(); }
+      }} />
     </Section>
   );
 }

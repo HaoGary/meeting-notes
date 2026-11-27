@@ -31,9 +31,9 @@ export function AuthLayout({ children }) {
         position: 'relative', overflow: 'hidden', bgcolor: 'primary.dark',
         // 背景插圖上疊一層品牌藍紫色遮罩（設計稿：rgba(24,13,204,.4)）
         backgroundImage: `linear-gradient(rgba(24,13,204,.4), rgba(24,13,204,.4)), url(${brandBg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        <Box component="img" src={logoWhite} alt="Meeting Notes" sx={{ width: 132, height: 50, display: 'block' }} />
-        <Box sx={{ my: 'auto', pb: '134px', position: 'relative' }}>
-          <Typography sx={{ fontSize: 30, fontWeight: 700, lineHeight: 1.35, color: '#fff', mb: 4.5 }}>讓每一場會議<br />都留下清楚紀錄</Typography>
+        <Box component="img" src={logoWhite} alt="Meeting Notes" sx={{ width: 105, height: 40, display: 'block' }} />
+        <Box sx={{ my: 'auto', pb: '144px', position: 'relative' }}>
+          <Typography sx={{ fontSize: 24, fontWeight: 700, lineHeight: '32px', color: '#fff', mb: 4 }}>讓每一場會議<br />都留下清楚紀錄</Typography>
           <Stack gap={2.5}>
             {features.map(([I, t, d]) => (
               <Stack key={t} direction="row" alignItems="center" gap={1.75}>

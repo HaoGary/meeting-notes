@@ -140,6 +140,12 @@ export function createApi(_getToken, { onUnauthorized, onSignedOut } = {}) {
         permission: acc.permission, canArchive: acc.can_archive, canShare: acc.can_share, canDelete: acc.can_delete,
       };
     },
+    // 只取內容（收到他人更新通知時重新載入）
+    async getContent(id) {
+      const c = await run(sb.from('meeting_contents').select('*').eq('meeting_id', id).maybeSingle());
+      if (!c) throw new ApiError(404, '找不到此會議', { code: 'NOT_FOUND' });
+      return toContent(c);
+    },
     async createMeeting(d) {
       return toMeeting(await rpc('create_meeting', {
         p_title: d.title, p_date: d.date, p_start: d.start, p_end: d.end, p_type: d.type, p_doc: d.doc ?? null,
@@ -248,6 +254,28 @@ export function createApi(_getToken, { onUnauthorized, onSignedOut } = {}) {
         await sb.auth.signOut({ scope: 'others' }); // 其他裝置全部登出，保留目前這台
         return { ok: true };
       },
+      // 變更自己的 Email：驗證目前密碼後，由 Supabase 寄出確認信；點信中連結後才生效
+      async requestEmailChange({ email, password }) {
+        const u = await sessionUser();
+        const next = String(email || '').trim().toLowerCase();
+        const fields = {};
+        if (!EMAIL_RE.test(next)) fields.email = 'Email 格式不正確';
+        else if (next === String(u.email).toLowerCase()) fields.email = '與目前的 Email 相同';
+        if (!password) fields.password = '請輸入目前密碼';
+        if (Object.keys(fields).length) throw new ApiError(422, '資料格式有誤', { code: 'VALIDATION', fields });
+        const check = createClient(SUPABASE_URL, SUPABASE_KEY,
+          { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'mn-verify' } });
+        const { error: pwErr } = await check.auth.signInWithPassword({ email: u.email, password });
+        if (pwErr) throw new ApiError(422, '目前密碼不正確', { code: 'WRONG_PASSWORD', fields: { password: '目前密碼不正確' } });
+        await check.auth.signOut({ scope: 'local' }).catch(() => {});
+        const { error } = await sb.auth.updateUser({ email: next }, { emailRedirectTo: appUrl() });
+        if (error) {
+          if (error.code === 'email_exists') throw new ApiError(422, '此 Email 已被使用', { code: 'DUPLICATE', fields: { email: '此 Email 已被其他帳號使用' } });
+          if (error.code === 'over_email_send_rate_limit') throw new ApiError(429, '寄信次數過多，請稍後再試');
+          throw new ApiError(400, `無法變更 Email：${error.message}`);
+        }
+        return { pending: true, email: next, current: u.email };
+      },
       async listSessions() {
         const { sessions } = await fn('listSessions');
         return sessions.map((s) => ({ ...s, createdAt: ms(s.createdAt), lastActiveAt: ms(s.lastActiveAt), remember: false }));
@@ -337,6 +365,51 @@ export function createApi(_getToken, { onUnauthorized, onSignedOut } = {}) {
         try { await rpc('complete_password_change'); } catch { /* 沒有待變更旗標時忽略 */ }
         await signOut('global'); // 重設後所有裝置需重新登入
         return { ok: true, username: email };
+      },
+    },
+
+    // ── 登入狀態檢查：帳號被停用、或這台裝置被強制登出時回傳 false；網路異常時回傳 null（不判定） ──
+    async sessionOk() {
+      const { data } = await sb.auth.getSession();
+      if (!data.session) return false;
+      const { data: ok, error } = await sb.rpc('session_ok');
+      if (error) return null;
+      return !!ok;
+    },
+
+    // ── 即時更新（Realtime，仍受 RLS 限制）；每個函式都回傳取消訂閱函式 ──
+    realtime: {
+      // 會議列表：任何會議或參與人員變動
+      onMeetingsChange(cb) {
+        const ch = sb.channel(`meetings-list-${Math.random().toString(36).slice(2)}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'meetings' }, () => cb())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_attendees' }, () => cb())
+          .subscribe();
+        return () => sb.removeChannel(ch);
+      },
+      // 單一會議：內容、基本資料、參與人員、刪除
+      watchMeeting(id, { onContent, onMeeting, onAttendees, onDeleted }) {
+        const ch = sb.channel(`meeting-${id}-${Math.random().toString(36).slice(2)}`)
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'meeting_contents', filter: `meeting_id=eq.${id}` },
+            (p) => onContent?.({ version: p.new.version, updatedBy: p.new.updated_by }))
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'meetings', filter: `id=eq.${id}` }, (p) => onMeeting?.(toMeeting(p.new)))
+          // Realtime 的 DELETE 事件無法加 filter，改為自行比對主鍵
+          .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'meetings' }, (p) => { if (p.old?.id === id) onDeleted?.(); })
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'meeting_attendees', filter: `meeting_id=eq.${id}` }, () => onAttendees?.())
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'meeting_attendees', filter: `meeting_id=eq.${id}` }, () => onAttendees?.())
+          .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'meeting_attendees' }, (p) => { if (p.old?.meeting_id === id) onAttendees?.(); })
+          .subscribe();
+        return () => sb.removeChannel(ch);
+      },
+      // 誰也在看這場會議（Presence）
+      presence(id, me, onSync) {
+        const ch = sb.channel(`presence-meeting-${id}`, { config: { presence: { key: `${me.id}-${Math.random().toString(36).slice(2, 8)}` } } });
+        ch.on('presence', { event: 'sync' }, () => {
+          const seen = new Map();
+          Object.values(ch.presenceState()).flat().forEach((x) => { if (x.id && x.id !== me.id) seen.set(x.id, { id: x.id, name: x.name, color: x.color, editing: !!x.editing }); });
+          onSync([...seen.values()]);
+        }).subscribe((st) => { if (st === 'SUBSCRIBED') ch.track({ id: me.id, name: me.name, color: me.color }); });
+        return () => sb.removeChannel(ch);
       },
     },
 

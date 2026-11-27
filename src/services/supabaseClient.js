@@ -48,14 +48,25 @@ export const appUrl = () => `${location.origin}${location.pathname}`;
 export async function handleAuthRedirect() {
   if (!supabase) return;
   const h = location.hash.slice(1);
-  if (!/(^|&)(access_token|error_description|error_code)=/.test(h)) return;
+  if (!/(^|&)(access_token|error_description|error_code|message)=/.test(h)) return;
   const p = new URLSearchParams(h);
   const base = `${location.pathname}${location.search}`;
   if (p.get('error_description') || p.get('error_code')) {
     history.replaceState(null, '', `${base}#reset-invalid`);
     return;
   }
+  // 變更 Email（安全模式需新舊信箱都確認）：第一封確認後 Supabase 只回傳 message，提示還要確認另一封
+  if (p.get('message') && !p.get('access_token')) {
+    try { sessionStorage.setItem('mn-auth-notice', 'email-change-half'); } catch {}
+    history.replaceState(null, '', `${base}#account`);
+    return;
+  }
   const type = p.get('type');
   await supabase.auth.getSession(); // supabase-js 解析網址中的 token 並建立 session
+  if (type === 'email_change') {
+    try { sessionStorage.setItem('mn-auth-notice', 'email-changed'); } catch {}
+    history.replaceState(null, '', `${base}#account`);
+    return;
+  }
   history.replaceState(null, '', `${base}${type === 'recovery' || type === 'invite' ? `#reset-${type}` : '#meetings'}`);
 }

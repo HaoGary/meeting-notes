@@ -31,7 +31,7 @@ export default function ForgotPasswordPage({ api, go }) {
   if (sent) {
     return (
       <AuthLayout>
-        <AuthHeader title="請檢查您的信箱" subtitle={<>若 <b>{sent}</b> 已註冊，您將收到一封重設密碼的郵件。請於 30 分鐘內點擊信中連結設定新密碼。</>} />
+        <AuthHeader title="請檢查您的信箱" subtitle={<>若 <b>{sent}</b> 已註冊，您將收到一封重設密碼的郵件。請盡快點擊信中連結設定新密碼，連結有使用期限。</>} />
         {alert && <Alert severity="error" sx={{ mb: 2.5 }}>{alert}</Alert>}
         <Box sx={{ mb: 2.5, px: 2, py: 1.5, borderRadius: '8px', border: 1, borderColor: 'divider', bgcolor: 'background.paper', color: 'text.secondary', fontSize: 14 }}>
           請確認垃圾郵件匣，或確認 Email 是否正確。
