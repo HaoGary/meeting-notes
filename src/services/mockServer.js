@@ -245,7 +245,7 @@ export function createApi(getToken, { onUnauthorized } = {}) {
       const now = Date.now();
       const m = {
         id: uid('m'), title: data.title || '未命名會議', date: data.date, start: data.start || '10:00', end: data.end || '11:00',
-        location: '', onlineUrl: '', hostId: u.id, type: data.type || '例行會議', status: 'draft',
+        location: '', onlineUrl: '', hostId: u.id, type: data.type || '例行會議', status: 'draft', guests: [],
         createdBy: u.id, createdAt: now, updatedAt: now,
       };
       db.meetings.push(m);
@@ -268,7 +268,13 @@ export function createApi(getToken, { onUnauthorized } = {}) {
         if (acc.permission !== 'editor') throw new ApiError(403, '您只有檢視權限，無法修改');
         if ((patch.status === 'archived' || m.status === 'archived') && !acc.canArchive) throw new ApiError(403, '沒有「封存會議」權限');
       } else assertCan(u, id, 'edit');
-      const allowed = ['title', 'date', 'start', 'end', 'location', 'onlineUrl', 'hostId', 'type', 'status'];
+      if ('guests' in patch) {
+        const g = [...new Set((patch.guests || []).map((x) => String(x).trim()).filter(Boolean))];
+        if (g.some((x) => x.length > 40)) throw new ApiError(422, '名字最多 40 個字');
+        if (g.length > 50) throw new ApiError(422, '外部參與人員最多 50 位');
+        patch = { ...patch, guests: g };
+      }
+      const allowed = ['title', 'date', 'start', 'end', 'location', 'onlineUrl', 'hostId', 'type', 'status', 'guests'];
       allowed.forEach((k) => { if (k in patch) m[k] = patch[k]; });
       m.updatedAt = Date.now();
       if ('status' in patch) log(id, u.id, `變更狀態為「${{ draft: '草稿', done: '已完成', archived: '已封存' }[patch.status]}」`);
@@ -413,6 +419,7 @@ export function createApi(getToken, { onUnauthorized } = {}) {
         meeting: { title: m.title, date: m.date, start: m.start, end: m.end, location: m.location, onlineUrl: m.onlineUrl, type: m.type, status: m.status },
         host: name(m.hostId),
         attendees: db.attendees.filter((a) => a.meetingId === m.id).map((a) => name(a.userId)).filter(Boolean),
+        guests: m.guests || [],
         doc: db.content[m.id].doc,
         updatedAt: db.content[m.id].updatedAt,
         scope: s.scope,

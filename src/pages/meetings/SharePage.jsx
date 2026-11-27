@@ -73,7 +73,7 @@ export default function SharePage({ api, token, onBackToApp, onLogin }) {
   }
   if (!data) return <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>{topBar}<Stack alignItems="center" py={14}><CircularProgress size={28} /></Stack></Box>;
 
-  const { meeting: m, host, attendees } = data;
+  const { meeting: m, host, attendees, guests = [] } = data;
   const urlOk = /^https?:\/\//.test(m.onlineUrl || '');
 
   return (
@@ -98,12 +98,17 @@ export default function SharePage({ api, token, onBackToApp, onLogin }) {
                 <Stack direction="row" alignItems="center" gap={0.75}><UserAvatar user={host} size={22} />{host?.name}</Stack>
               </Info>
               <Box sx={{ gridColumn: '1 / -1' }}>
-                <Info icon={GroupOutlined} label={`參與人員（${attendees.length}）`}>
+                <Info icon={GroupOutlined} label={`參與人員（${attendees.length + guests.length}）`}>
                   <Stack direction="row" flexWrap="wrap" gap={0.75} mt={0.5}>
                     {attendees.map((a) => (
                       <Chip key={a.id} size="small" variant="outlined" label={a.name}
                         avatar={<Avatar sx={{ bgcolor: `${a.color} !important`, color: '#fff !important', fontSize: '9px !important', fontWeight: 600, width: '20px !important', height: '20px !important', ml: '3px !important', mr: '-2px !important' }}>{a.name.replace(/[A-Za-z]+ /, '').slice(0, 1)}</Avatar>}
                         sx={{ bgcolor: '#fff', borderColor: 'divider', height: 28 }} />
+                    ))}
+                    {guests.map((g) => (
+                      <Chip key={`g-${g}`} size="small" variant="outlined" label={g}
+                        avatar={<Avatar sx={{ bgcolor: '#e4e4e7 !important', color: '#71717a !important', fontSize: '9px !important', fontWeight: 600, width: '20px !important', height: '20px !important', ml: '3px !important', mr: '-2px !important' }}>{g.replace(/[A-Za-z]+ /, '').slice(0, 1)}</Avatar>}
+                        sx={{ bgcolor: '#fff', borderColor: 'divider', borderStyle: 'dashed', height: 28 }} />
                     ))}
                   </Stack>
                 </Info>

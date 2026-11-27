@@ -1,6 +1,6 @@
 // 會議基本資料：屬性清單式排版（標籤在左、值在右），無外框輸入，降低視覺密度。
 import { useState } from 'react';
-import { AvatarGroup, Box, Button, Chip, IconButton, InputBase, Menu, MenuItem, Select, Stack, Tooltip, Typography } from '@mui/material';
+import { Avatar, AvatarGroup, Box, Button, Chip, Divider, IconButton, InputBase, ListSubheader, Menu, MenuItem, Select, Stack, Tooltip, Typography } from '@mui/material';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import Add from '@mui/icons-material/Add';
@@ -16,6 +16,12 @@ import { MEETING_TYPES } from '../../services/seed';
 import { UserAvatar, fmtDate } from '../common/ui';
 import { DateInput, TimeInput } from '../common/pickers';
 import ArrowForward from '@mui/icons-material/ArrowForward';
+
+const initial = (name = '') => name.replace(/[A-Za-z]+ /, '').slice(0, 1);
+// 外部人員（無系統帳號）頭像：灰底，與系統成員區分
+function GuestAvatar({ name, size = 22, sx }) {
+  return <Avatar sx={{ width: size, height: size, fontSize: size * 0.42, fontWeight: 600, bgcolor: '#e4e4e7', color: '#71717a', ...sx }}>{initial(name)}</Avatar>;
+}
 
 const fieldSx = {
   fontSize: 14, borderRadius: 1.5, px: 1, height: 32, transition: 'background .12s',
@@ -42,6 +48,19 @@ function Prop({ icon: I, label, children, error, wide }) {
 
 export default function MeetingMeta({ meeting, attendees, users, editable, onChange, onAttendees, collapsed = false, onToggle }) {
   const [addEl, setAddEl] = useState(null);
+  const [guestName, setGuestName] = useState('');
+  const [guestErr, setGuestErr] = useState('');
+  const guests = meeting.guests || [];
+  const closeAdd = () => { setAddEl(null); setGuestName(''); setGuestErr(''); };
+  const addGuest = () => {
+    const n = guestName.trim();
+    if (!n) return;
+    if (n.length > 40) return setGuestErr('名字最多 40 個字');
+    if (guests.includes(n)) return setGuestErr('已在參與人員中');
+    onChange({ guests: [...guests, n] });
+    closeAdd();
+  };
+  const removeGuest = (g) => onChange({ guests: guests.filter((x) => x !== g) });
   const userOf = (id) => users.find((u) => u.id === id);
   const set = (k) => (e) => onChange({ [k]: e.target.value });
   const ro = !editable;
@@ -69,8 +88,9 @@ export default function MeetingMeta({ meeting, attendees, users, editable, onCha
           <Stack direction="row" alignItems="center" gap={0.75}>
             <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 22, height: 22, fontSize: 10, borderWidth: 1.5 } }}>
               {attendees.map((a) => <UserAvatar key={a.userId} user={userOf(a.userId)} size={22} />)}
+              {guests.map((g) => <GuestAvatar key={`g-${g}`} name={g} size={22} />)}
             </AvatarGroup>
-            {attendees.length} 人參與
+            {attendees.length + guests.length} 人參與
           </Stack>
         </Stack>
         <Button className="meta-toggle" size="small" color="inherit" endIcon={<ExpandMore />} sx={{ color: 'text.secondary', flex: 'none', fontWeight: 500 }}>展開</Button>
@@ -145,13 +165,35 @@ export default function MeetingMeta({ meeting, attendees, users, editable, onCha
                   sx={{ height: { xs: 36, sm: 28 }, borderRadius: 18, bgcolor: '#fff', borderColor: 'divider', '& .MuiChip-deleteIcon': { fontSize: { xs: 20, sm: 16 } } }} />
               );
             })}
-            {!ro && notIn.length > 0 && (
+            {guests.map((g) => (
+              <Tooltip key={`g-${g}`} title="外部人員（無系統帳號，僅記錄名字）">
+                <Chip size="small" variant="outlined" avatar={<GuestAvatar name={g} size={20} sx={{ ml: '3px !important', mr: '-2px !important' }} />}
+                  onDelete={!ro ? () => removeGuest(g) : undefined}
+                  label={<Stack direction="row" alignItems="center" gap={0.75}>{g}<Box component="span" sx={{ fontSize: 11.5, color: 'text.disabled' }}>外部</Box></Stack>}
+                  sx={{ height: { xs: 36, sm: 28 }, borderRadius: 18, bgcolor: '#fff', borderColor: 'divider', borderStyle: 'dashed', '& .MuiChip-deleteIcon': { fontSize: { xs: 20, sm: 16 } } }} />
+              </Tooltip>
+            ))}
+            {!ro && (
               <>
                 <Button size="small" startIcon={<Add sx={{ fontSize: '16px !important' }} />} onClick={(e) => setAddEl(e.currentTarget)}
                   sx={{ height: 28, borderRadius: 4, px: 1.25, color: 'text.secondary', fontWeight: 500 }}>新增</Button>
-                <Menu anchorEl={addEl} open={!!addEl} onClose={() => setAddEl(null)}>
+                <Menu anchorEl={addEl} open={!!addEl} onClose={closeAdd} autoFocus={false}
+                  slotProps={{ paper: { sx: { width: 280, maxWidth: 'calc(100vw - 32px)' } } }} MenuListProps={{ sx: { pt: 0 } }}>
+                  <Box sx={{ px: 1.5, pt: 1.5, pb: 1 }} onKeyDown={(e) => e.stopPropagation()}>
+                    <Typography fontSize={12} color="text.secondary" mb={0.75}>沒有系統帳號的成員，直接輸入名字</Typography>
+                    <Stack direction="row" gap={0.75}>
+                      <InputBase autoFocus value={guestName} placeholder="輸入名字" onChange={(e) => { setGuestName(e.target.value); setGuestErr(''); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); addGuest(); } }}
+                        inputProps={{ 'aria-label': '外部參與人員名字', maxLength: 40 }}
+                        sx={{ flex: 1, fontSize: 14, height: 32, px: 1, borderRadius: 1.5, border: 1, borderColor: guestErr ? 'error.main' : 'divider', '&.Mui-focused': { borderColor: guestErr ? 'error.main' : 'primary.main' } }} />
+                      <Button variant="contained" size="small" disableElevation disabled={!guestName.trim()} onClick={addGuest} sx={{ minWidth: 0, px: 1.5 }}>加入</Button>
+                    </Stack>
+                    {guestErr && <Typography fontSize={12} color="error" mt={0.5}>{guestErr}</Typography>}
+                  </Box>
+                  {notIn.length > 0 && <Divider />}
+                  {notIn.length > 0 && <ListSubheader sx={{ lineHeight: '32px', fontSize: 12 }}>系統成員</ListSubheader>}
                   {notIn.map((u) => (
-                    <MenuItem key={u.id} onClick={() => { onAttendees([...attendees, { userId: u.id, permission: 'editor' }]); setAddEl(null); }} sx={{ gap: 1 }}>
+                    <MenuItem key={u.id} onClick={() => { onAttendees([...attendees, { userId: u.id, permission: 'editor' }]); closeAdd(); }} sx={{ gap: 1 }}>
                       <UserAvatar user={u} size={22} />{u.name}
                     </MenuItem>
                   ))}

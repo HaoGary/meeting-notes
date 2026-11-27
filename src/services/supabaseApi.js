@@ -17,7 +17,7 @@ const maskEmail = (e = '') => e.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '*
 
 const toMeeting = (r) => ({
   id: r.id, title: r.title, date: r.meeting_date, start: hhmm(r.start_time), end: hhmm(r.end_time),
-  location: r.location, onlineUrl: r.online_url, hostId: r.host_id, type: r.type, status: r.status,
+  location: r.location, onlineUrl: r.online_url, hostId: r.host_id, type: r.type, status: r.status, guests: r.guests || [],
   createdBy: r.created_by, createdAt: ms(r.created_at), updatedAt: ms(r.updated_at),
   ...('permission' in r ? {
     permission: r.permission, canArchive: !!r.can_archive, canShare: !!r.can_share,
@@ -25,7 +25,14 @@ const toMeeting = (r) => ({
   } : {}),
 });
 const MEETING_COLUMNS = { title: 'title', date: 'meeting_date', start: 'start_time', end: 'end_time',
-  location: 'location', onlineUrl: 'online_url', hostId: 'host_id', type: 'type' };
+  location: 'location', onlineUrl: 'online_url', hostId: 'host_id', type: 'type', guests: 'guests' };
+// 外部參與人員（無系統帳號）：去除空白與重複，名字最多 40 字、最多 50 位
+export const cleanGuests = (list = []) => {
+  const out = [...new Set(list.map((g) => String(g).trim()).filter(Boolean))];
+  if (out.some((g) => g.length > 40)) throw new ApiError(422, '名字最多 40 個字', { code: 'VALIDATION' });
+  if (out.length > 50) throw new ApiError(422, '外部參與人員最多 50 位', { code: 'VALIDATION' });
+  return out;
+};
 const toAttendee = (a) => ({ meetingId: a.meeting_id, userId: a.user_id, permission: a.permission });
 const toContent = (c) => c && ({ version: c.version, doc: c.doc, updatedAt: ms(c.updated_at), updatedBy: c.updated_by });
 const toShare = (s) => s && ({
@@ -155,6 +162,7 @@ export function createApi(_getToken, { onUnauthorized, onSignedOut } = {}) {
       if (Object.keys(patch).length === 1 && 'status' in patch) {
         return toMeeting(await rpc('set_meeting_status', { p_meeting: id, p_status: patch.status }));
       }
+      if ('guests' in patch) patch = { ...patch, guests: cleanGuests(patch.guests) };
       const row = {};
       Object.entries(patch).forEach(([k, v]) => { if (MEETING_COLUMNS[k]) row[MEETING_COLUMNS[k]] = v; });
       const rows = await run(sb.from('meetings').update(row).eq('id', id).select());
@@ -217,7 +225,7 @@ export function createApi(_getToken, { onUnauthorized, onSignedOut } = {}) {
       return {
         meeting: { title: m.title, date: m.meeting_date, start: hhmm(m.start_time), end: hhmm(m.end_time),
           location: m.location, onlineUrl: m.online_url, type: m.type, status: m.status },
-        host: r.host, attendees: r.attendees, doc: r.doc, updatedAt: ms(r.updated_at), scope: r.scope, expiresAt: ms(r.expires_at),
+        host: r.host, attendees: r.attendees, guests: r.guests || [], doc: r.doc, updatedAt: ms(r.updated_at), scope: r.scope, expiresAt: ms(r.expires_at),
       };
     },
 

@@ -54,7 +54,7 @@ function MeetingCards({ loading, rows, users, empty, hasAny, canCreate, onNew, o
                 </Stack>
                 <Stack direction="row" alignItems="center" gap={1} sx={{ mt: 1 }}>
                   <UserAvatar user={h} size={22} />
-                  <Typography fontSize={13} noWrap sx={{ minWidth: 0 }}>{h?.name}<Box component="span" color="text.disabled">・{m.attendeeCount} 人參與</Box></Typography>
+                  <Typography fontSize={13} noWrap sx={{ minWidth: 0 }}>{h?.name}<Box component="span" color="text.disabled">・{m.attendeeCount + (m.guests?.length || 0)} 人參與</Box></Typography>
                   <Typography fontSize={12} color="text.disabled" sx={{ ml: 'auto', flex: 'none' }}>更新 {fmtRel(m.updatedAt)}</Typography>
                 </Stack>
               </Box>
@@ -185,7 +185,7 @@ export default function MeetingListPage({ api, onOpenShare, meetings, loading, u
                           <UserAvatar user={h} size={26} />
                           <Box>
                             <Typography fontSize={13.5} noWrap>{h?.name}</Typography>
-                            <Typography fontSize={12} color="text.disabled">{m.attendeeCount} 人參與</Typography>
+                            <Typography fontSize={12} color="text.disabled">{m.attendeeCount + (m.guests?.length || 0)} 人參與</Typography>
                           </Box>
                         </Stack>
                       </TableCell>

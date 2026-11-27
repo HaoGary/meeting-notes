@@ -154,7 +154,7 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
     meta.schedule(patch);
     if (now) meta.flush().then((ok) => ok && patch.status && toast(`已變更為「${MEETING_STATUS[patch.status]}」`));
   };
-  const onMetaChange = (patch) => patchMeeting(patch, 'status' in patch);
+  const onMetaChange = (patch) => patchMeeting(patch, 'status' in patch || 'guests' in patch);
 
   const setAttendees = async (list) => {
     const prev = data.attendees;

@@ -27,6 +27,7 @@
 | 20261126093615_fix_notify_meeting_update | 修正時間地點變更通知 | MCP |
 | 20261126093700_notifications_manual | 參與人差異通知、每日清除 30 天前通知 | SQL Editor 手動 |
 | 20261127090000_session_check_realtime_attendees | 停用/強制登出立即失效（檢查 auth.sessions）、參與人表加入 Realtime | MCP |
+| 20261127100000_meeting_guests | 會議新增外部參與人員欄位 guests（只記錄名字）、分享頁顯示 | MCP |
 
 標示「SQL Editor 手動」的兩筆含 delete 語句，是在後台手動執行的，遠端沒有它們的版本紀錄。第一次用 CLI 連結專案時，請先補記錄，避免 `db push` 重複套用：
 
