@@ -156,10 +156,27 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
   const canEdit = permission === 'editor' && !archived;
   const canStatus = permission === 'editor';
 
+  const reloadExternals = () => api.listExternalMembers?.().then(setExternals).catch(() => {});
   const addExternal = (n) => {
-    if (externals.some((x) => x.toLowerCase() === n.toLowerCase())) return;
-    setExternals((l) => [...l, n].sort((a, b) => a.localeCompare(b, 'zh-Hant')));
-    api.addExternalMember(n).catch((e) => toast(e.message, 'error'));
+    if (externals.some((x) => x.name.toLowerCase() === n.toLowerCase())) return;
+    setExternals((l) => [...l, { id: `tmp-${n}`, name: n }].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant')));
+    api.addExternalMember(n).then(reloadExternals).catch((e) => toast(e.message, 'error'));
+  };
+  // 改名：伺服器會同步更新所有會議；這裡同步目前畫面（不觸發儲存）
+  const renameExternal = async (id, name) => {
+    const r = await api.renameExternalMember(id, name);
+    const swap = (g) => (g === r.old ? r.name : g);
+    setData((d) => d && ({ ...d, meeting: { ...d.meeting,
+      guests: [...new Set((d.meeting.guests || []).map(swap))],
+      hostName: d.meeting.hostName ? swap(d.meeting.hostName) : d.meeting.hostName } }));
+    await reloadExternals();
+    toast(`已將「${r.old}」改名為「${r.name}」`);
+  };
+  const deleteExternal = async (id) => {
+    const x = externals.find((e) => e.id === id);
+    await api.deleteExternalMember(id);
+    await reloadExternals();
+    toast(`已從外部成員名單移除「${x?.name}」`);
   };
 
   const patchMeeting = (patch, now = false) => {
@@ -286,7 +303,7 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
 
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
         <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <MeetingMeta meeting={meeting} attendees={attendees} users={users} externals={externals} onAddExternal={addExternal} editable={canEdit}
+          <MeetingMeta meeting={meeting} attendees={attendees} users={users} externals={externals} onAddExternal={addExternal} onRenameExternal={renameExternal} onDeleteExternal={deleteExternal} editable={canEdit}
             onChange={onMetaChange} onAttendees={setAttendees} collapsed={metaCollapsed} onToggle={toggleMeta} />
           {remote && (
             <Alert severity="info" sx={{ borderRadius: 0, py: 0.25 }}

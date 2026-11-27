@@ -30,6 +30,7 @@
 | 20261127100000_meeting_guests | 會議新增外部參與人員欄位 guests（只記錄名字）、分享頁顯示 | MCP |
 | 20261127110000_meeting_host_name | 外部主持人欄位 host_name；修改紀錄涵蓋外部人員；分享頁顯示 | MCP |
 | 20261127120000_external_members | 外部成員統一名單（external_members），匯入既有會議用過的名字 | SQL Editor 手動 |
+| 20261127130000_external_members_edit | 外部成員改名（同步更新所有會議）、從名單移除 | SQL Editor 手動 |
 
 標示「SQL Editor 手動」的兩筆含 delete 語句，是在後台手動執行的，遠端沒有它們的版本紀錄。第一次用 CLI 連結專案時，請先補記錄，避免 `db push` 重複套用：
 

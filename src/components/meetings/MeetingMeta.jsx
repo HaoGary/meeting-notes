@@ -16,19 +16,82 @@ import { MEETING_TYPES } from '../../services/seed';
 import { UserAvatar, fmtDate, guestUser, hostOf } from '../common/ui';
 import { DateInput, TimeInput } from '../common/pickers';
 import ArrowForward from '@mui/icons-material/ArrowForward';
+import EditOutlined from '@mui/icons-material/EditOutlined';
+import DeleteOutline from '@mui/icons-material/DeleteOutline';
 
-// 選人選單：輸入框可搜尋，也可新增外部成員；下方分「外部成員」（統一名單）與「系統成員」
-function PersonPicker({ anchorEl, onClose, members, externals = [], onPickUser, onPickName, existing = [] }) {
+// 外部成員名單中的一列：點擊選取；右側可改名、刪除（行內確認，不另開對話框）
+function ExternalRow({ x, onPick, onRename, onDelete, taken }) {
+  const [mode, setMode] = useState(null); // 'edit' | 'delete' | null
+  const [val, setVal] = useState(x.name);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const stop = (e) => e.stopPropagation();
+  const run = async (fn) => {
+    setBusy(true); setErr('');
+    try { await fn(); setMode(null); } catch (e) { setErr(e.message || '操作失敗'); } finally { setBusy(false); }
+  };
+  const save = () => {
+    const n = val.trim();
+    if (!n) return setErr('請輸入名字');
+    if (n === x.name) return setMode(null);
+    run(() => onRename(x.id, n));
+  };
+  const iconSx = { p: 0.5, color: 'text.disabled', '&:hover': { color: 'text.primary' } };
+  if (mode === 'edit') {
+    return (
+      <Box sx={{ px: 1.5, py: 0.75 }} onKeyDown={stop}>
+        <Stack direction="row" gap={0.75} alignItems="center">
+          <InputBase autoFocus value={val} onChange={(e) => { setVal(e.target.value); setErr(''); }} inputProps={{ 'aria-label': `${x.name} 新名字`, maxLength: 40 }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); save(); } if (e.key === 'Escape') { e.preventDefault(); setMode(null); setVal(x.name); } }}
+            sx={{ flex: 1, fontSize: 14, height: 32, px: 1, borderRadius: 1.5, border: 1, borderColor: err ? 'error.main' : 'primary.main' }} />
+          <Button size="small" variant="contained" disableElevation disabled={busy} onClick={save} sx={{ minWidth: 0, px: 1.25 }}>儲存</Button>
+          <Button size="small" color="inherit" disabled={busy} onClick={() => { setMode(null); setVal(x.name); setErr(''); }} sx={{ minWidth: 0, px: 1, color: 'text.secondary' }}>取消</Button>
+        </Stack>
+        <Typography fontSize={11.5} color={err ? 'error' : 'text.disabled'} mt={0.5}>{err || '會一併更新所有會議中的名字'}</Typography>
+      </Box>
+    );
+  }
+  if (mode === 'delete') {
+    return (
+      <Box sx={{ px: 1.5, py: 1, bgcolor: '#fef2f2' }} onKeyDown={stop}>
+        <Typography fontSize={13} fontWeight={500}>從名單移除「{x.name}」？</Typography>
+        <Typography fontSize={11.5} color="text.secondary" mt={0.25}>已記錄在會議中的名字會保留。</Typography>
+        {err && <Typography fontSize={12} color="error" mt={0.5}>{err}</Typography>}
+        <Stack direction="row" gap={0.75} justifyContent="flex-end" mt={0.75}>
+          <Button size="small" color="inherit" disabled={busy} onClick={() => setMode(null)} sx={{ color: 'text.secondary' }}>取消</Button>
+          <Button size="small" color="error" variant="contained" disableElevation disabled={busy} onClick={() => run(() => onDelete(x.id))}>移除</Button>
+        </Stack>
+      </Box>
+    );
+  }
+  return (
+    <MenuItem onClick={taken ? undefined : onPick} disabled={false} sx={{ gap: 1, pr: 1, '& .ext-actions': { opacity: { xs: 1, md: 0 } }, '&:hover .ext-actions, &.Mui-focusVisible .ext-actions': { opacity: 1 } }}>
+      <UserAvatar user={guestUser(x.name)} size={22} />
+      <Box component="span" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', color: taken ? 'text.disabled' : undefined }}>{x.name}</Box>
+      {taken && <Box component="span" sx={{ fontSize: 11.5, color: 'text.disabled' }}>已加入</Box>}
+      {onRename && (
+        <Stack direction="row" className="ext-actions" sx={{ transition: 'opacity .12s' }}>
+          <Tooltip title="改名"><IconButton size="small" aria-label={`改名 ${x.name}`} onClick={(e) => { stop(e); setVal(x.name); setMode('edit'); }} sx={iconSx}><EditOutlined sx={{ fontSize: 16 }} /></IconButton></Tooltip>
+          <Tooltip title="從名單移除"><IconButton size="small" aria-label={`移除 ${x.name}`} onClick={(e) => { stop(e); setMode('delete'); }} sx={{ ...iconSx, '&:hover': { color: 'error.main' } }}><DeleteOutline sx={{ fontSize: 16 }} /></IconButton></Tooltip>
+        </Stack>
+      )}
+    </MenuItem>
+  );
+}
+
+// 選人選單：輸入框可搜尋，也可新增外部成員；下方分「外部成員」（統一名單，可改名、刪除）與「系統成員」
+function PersonPicker({ anchorEl, onClose, members, externals = [], onPickUser, onPickName, existing = [], onRenameExternal, onDeleteExternal }) {
   const [q, setQ] = useState('');
   const [err, setErr] = useState('');
   const close = () => { setQ(''); setErr(''); onClose(); };
   const kw = q.trim();
   const low = kw.toLowerCase();
-  const extList = externals.filter((n) => !existing.includes(n) && (!low || n.toLowerCase().includes(low)));
+  const has = (list, n) => list.some((x) => x.toLowerCase() === n.toLowerCase());
+  const extList = externals.filter((x) => !low || x.name.toLowerCase().includes(low));
   const memList = members.filter((u) => !low || u.name.toLowerCase().includes(low));
-  const exact = kw && (externals.some((n) => n.toLowerCase() === low) || members.some((u) => u.name.toLowerCase() === low) || existing.some((n) => n.toLowerCase() === low));
+  const exact = kw && (externals.some((x) => x.name.toLowerCase() === low) || members.some((u) => u.name.toLowerCase() === low) || has(existing, kw));
   const pickName = (n) => {
-    if (existing.some((x) => x.toLowerCase() === n.toLowerCase())) return setErr('已在名單中');
+    if (has(existing, n)) return setErr('已在名單中');
     onPickName(n); close();
   };
   const create = () => {
@@ -38,17 +101,17 @@ function PersonPicker({ anchorEl, onClose, members, externals = [], onPickUser, 
   };
   const onEnter = () => {
     if (!kw) return;
-    const ext = externals.find((n) => n.toLowerCase() === low);
+    const ext = externals.find((x) => x.name.toLowerCase() === low);
     const mem = members.find((u) => u.name.toLowerCase() === low);
     if (mem) { onPickUser(mem); close(); }
-    else if (ext) pickName(ext);
+    else if (ext) pickName(ext.name);
     else create();
   };
-  const head = (t) => <ListSubheader sx={{ lineHeight: '32px', fontSize: 12, bgcolor: 'background.paper' }}>{t}</ListSubheader>;
+  const head = (t) => <ListSubheader sx={{ lineHeight: '32px', fontSize: 12, bgcolor: 'background.paper', top: 58 }}>{t}</ListSubheader>;
   return (
     <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={close} autoFocus={false}
-      slotProps={{ paper: { sx: { width: 280, maxWidth: 'calc(100vw - 32px)', maxHeight: 420 } } }} MenuListProps={{ sx: { pt: 0 } }}>
-      <Box sx={{ px: 1.5, pt: 1.5, pb: 1, position: 'sticky', top: 0, zIndex: 2, bgcolor: 'background.paper' }} onKeyDown={(e) => { if (e.key !== 'Escape' && e.key !== 'ArrowDown') e.stopPropagation(); }}>
+      slotProps={{ paper: { sx: { width: 300, maxWidth: 'calc(100vw - 32px)', maxHeight: 440 } } }} MenuListProps={{ sx: { pt: 0 } }}>
+      <Box sx={{ px: 1.5, pt: 1.5, pb: 1, position: 'sticky', top: 0, zIndex: 3, bgcolor: 'background.paper' }} onKeyDown={(e) => { if (e.key !== 'Escape' && e.key !== 'ArrowDown') e.stopPropagation(); }}>
         <InputBase autoFocus fullWidth value={q} placeholder="搜尋，或輸入新的外部成員名字" onChange={(e) => { setQ(e.target.value); setErr(''); }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); onEnter(); } }}
           inputProps={{ 'aria-label': '搜尋或輸入名字', maxLength: 40 }}
@@ -62,11 +125,9 @@ function PersonPicker({ anchorEl, onClose, members, externals = [], onPickUser, 
         </MenuItem>
       )}
       {extList.length > 0 && head('外部成員')}
-      {extList.map((n) => (
-        <MenuItem key={`e-${n}`} onClick={() => pickName(n)} sx={{ gap: 1 }}>
-          <UserAvatar user={guestUser(n)} size={22} />{n}
-          <Box component="span" sx={{ ml: 'auto', fontSize: 11.5, color: 'text.disabled' }}>外部</Box>
-        </MenuItem>
+      {extList.map((x) => (
+        <ExternalRow key={x.id} x={x} taken={has(existing, x.name)} onPick={() => pickName(x.name)}
+          onRename={onRenameExternal} onDelete={onDeleteExternal} />
       ))}
       {memList.length > 0 && head('系統成員')}
       {memList.map((u) => (
@@ -74,9 +135,6 @@ function PersonPicker({ anchorEl, onClose, members, externals = [], onPickUser, 
           <UserAvatar user={u} size={22} />{u.name}
         </MenuItem>
       ))}
-      {kw && exact && !extList.length && !memList.length && (
-        <Typography fontSize={13} color="text.disabled" sx={{ px: 2, py: 1 }}>已在名單中</Typography>
-      )}
     </Menu>
   );
 }
@@ -104,7 +162,7 @@ function Prop({ icon: I, label, children, error, wide }) {
   );
 }
 
-export default function MeetingMeta({ meeting, attendees, users, externals = [], onAddExternal, editable, onChange, onAttendees, collapsed = false, onToggle }) {
+export default function MeetingMeta({ meeting, attendees, users, externals = [], onAddExternal, onRenameExternal, onDeleteExternal, editable, onChange, onAttendees, collapsed = false, onToggle }) {
   const [addEl, setAddEl] = useState(null);
   const [hostEl, setHostEl] = useState(null);
   const guests = meeting.guests || [];
@@ -187,7 +245,7 @@ export default function MeetingMeta({ meeting, attendees, users, externals = [],
             {!ro && <ExpandMore className="host-caret" sx={{ fontSize: 20, color: 'text.secondary' }} />}
           </Box>
           <PersonPicker anchorEl={hostEl} onClose={() => setHostEl(null)}
-            members={users} externals={externals} existing={meeting.hostName ? [meeting.hostName] : []}
+            members={users} externals={externals} existing={meeting.hostName ? [meeting.hostName] : []} onRenameExternal={onRenameExternal} onDeleteExternal={onDeleteExternal}
             onPickUser={(u) => onChange({ hostId: u.id, hostName: null })} onPickName={(n) => { onAddExternal?.(n); onChange({ hostName: n }); }} />
         </Prop>
         <Prop icon={CategoryOutlined} label="會議類型">
@@ -236,7 +294,7 @@ export default function MeetingMeta({ meeting, attendees, users, externals = [],
                 <Button size="small" startIcon={<Add sx={{ fontSize: '16px !important' }} />} onClick={(e) => setAddEl(e.currentTarget)}
                   sx={{ height: 28, borderRadius: 4, px: 1.25, color: 'text.secondary', fontWeight: 500 }}>新增</Button>
                 <PersonPicker anchorEl={addEl} onClose={() => setAddEl(null)}
-                  members={notIn} externals={externals} existing={guests}
+                  members={notIn} externals={externals} existing={guests} onRenameExternal={onRenameExternal} onDeleteExternal={onDeleteExternal}
                   onPickUser={(u) => onAttendees([...attendees, { userId: u.id, permission: 'editor' }])}
                   onPickName={(n) => { onAddExternal?.(n); onChange({ guests: [...guests, n] }); }} />
               </>

@@ -130,7 +130,13 @@ export function createApi(_getToken, { onUnauthorized, onSignedOut } = {}) {
     },
     // 外部成員名單（沒有系統帳號的人）
     async listExternalMembers() {
-      return (await run(sb.from('external_members').select('id, name').order('name'))).map((r) => r.name);
+      return run(sb.from('external_members').select('id, name').order('name'));
+    },
+    async renameExternalMember(id, name) {
+      return rpc('rename_external_member', { p_id: id, p_name: name });
+    },
+    async deleteExternalMember(id) {
+      return rpc('delete_external_member', { p_id: id });
     },
     async addExternalMember(name) {
       const n = (name || '').trim();

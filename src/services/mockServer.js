@@ -19,6 +19,12 @@ function load() {
   } catch {}
   return buildSeed();
 }
+// 外部成員名單（舊資料為字串陣列時自動轉換；首次使用時匯入會議中用過的名字）
+function externals() {
+  if (!db.externals) db.externals = [...new Set(db.meetings.flatMap((m) => [...(m.guests || []), ...(m.hostName ? [m.hostName] : [])]))];
+  db.externals = db.externals.map((x, i) => (typeof x === 'string' ? { id: `x-${i}-${x}`, name: x } : x));
+  return db.externals;
+}
 function persist() {
   try { localStorage.setItem(KEY, JSON.stringify(db)); } catch {}
 }
@@ -208,19 +214,40 @@ export function createApi(getToken, { onUnauthorized } = {}) {
     async listExternalMembers() {
       await delay(80);
       (await me());
-      if (!db.externals) {
-        db.externals = [...new Set(db.meetings.flatMap((m) => [...(m.guests || []), ...(m.hostName ? [m.hostName] : [])]))];
-        persist();
-      }
-      return clone([...db.externals].sort((a, b) => a.localeCompare(b, 'zh-Hant')));
+      return clone([...externals()].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant')));
+    },
+    async renameExternalMember(id, name) {
+      await delay(120);
+      const u = await me();
+      const n = (name || '').trim();
+      if (!n || n.length > 40) throw new ApiError(422, '名字需為 1–40 個字');
+      const x = externals().find((e) => e.id === id);
+      if (!x) throw new ApiError(404, '找不到此外部成員');
+      if (externals().some((e) => e.id !== id && e.name.toLowerCase() === n.toLowerCase())) throw new ApiError(409, '已有相同名字的外部成員');
+      const old = x.name; x.name = n;
+      if (old !== n) db.meetings.forEach((m) => {
+        let changed = false;
+        if ((m.guests || []).includes(old)) { m.guests = [...new Set(m.guests.map((g) => (g === old ? n : g)))]; changed = true; }
+        if (m.hostName === old) { m.hostName = n; changed = true; }
+        if (changed) { m.updatedAt = Date.now(); log(m.id, u.id, '修改會議資料'); emit({ type: 'meeting', id: m.id, meeting: clone(m), by: u.id }); }
+      });
+      persist();
+      return { id, name: n, old };
+    },
+    async deleteExternalMember(id) {
+      await delay(120);
+      (await me());
+      if (!externals().some((e) => e.id === id)) throw new ApiError(404, '找不到此外部成員');
+      db.externals = externals().filter((e) => e.id !== id);
+      persist();
+      return { ok: true };
     },
     async addExternalMember(name) {
       await delay(80);
       (await me());
       const n = (name || '').trim();
       if (!n || n.length > 40) throw new ApiError(422, '名字需為 1–40 個字');
-      db.externals = db.externals || [];
-      if (!db.externals.some((x) => x.toLowerCase() === n.toLowerCase())) { db.externals.push(n); persist(); }
+      if (!externals().some((x) => x.name.toLowerCase() === n.toLowerCase())) { db.externals.push({ id: uid('x'), name: n }); persist(); }
       return n;
     },
 

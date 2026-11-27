@@ -21,6 +21,8 @@ test('新增沒有系統帳號的外部參與人員', async ({ page }) => {
   // 重複名字提示
   await page.getByRole('button', { name: '新增', exact: true }).click();
   await page.getByLabel('搜尋或輸入名字').fill('志中');
+  await expect(page.getByRole('menuitem', { name: /志中/ })).toContainText('已加入');
+  await page.getByLabel('搜尋或輸入名字').press('Enter');
   await expect(page.getByText('已在名單中')).toBeVisible();
   await page.keyboard.press('Escape');
   await page.waitForTimeout(800);
@@ -71,5 +73,37 @@ test('外部成員統一名單：新增過的人可以在主持人與參與人�
   await expandMeta(page);
   await page.getByRole('button', { name: '新增', exact: true }).click();
   await expect(page.getByRole('menuitem', { name: /Annie/ })).toBeVisible();
+  err.assertNone();
+});
+
+test('外部成員可以改名與從名單移除', async ({ page }) => {
+  const err = trackErrors(page);
+  await login(page, 'meeting-m1');
+  await expandMeta(page);
+  // 先加入 Amy
+  await page.getByRole('button', { name: '新增', exact: true }).click();
+  await page.getByLabel('搜尋或輸入名字').fill('Amy');
+  await page.getByLabel('搜尋或輸入名字').press('Enter');
+  await expect(page.locator('.MuiChip-root', { hasText: 'Amy' })).toBeVisible();
+  // 改名 → 會議中的名字一起更新
+  await page.getByRole('button', { name: '新增', exact: true }).click();
+  await page.getByRole('button', { name: '改名 Amy' }).click();
+  const edit = page.getByLabel('Amy 新名字');
+  await edit.fill('Amy Lin');
+  await edit.press('Enter');
+  await expect(page.getByText('已將「Amy」改名為「Amy Lin」')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.MuiChip-root', { hasText: 'Amy Lin' })).toBeVisible();
+  await page.waitForTimeout(500);
+  await page.reload();
+  await expect(page.locator('.MuiChip-root', { hasText: 'Amy Lin' })).toBeVisible();
+  // 從名單移除 → 會議中仍保留名字，但選單不再出現
+  await page.getByRole('button', { name: '新增', exact: true }).click();
+  await page.getByRole('button', { name: '移除 Amy Lin' }).click();
+  await page.getByRole('button', { name: '移除', exact: true }).click();
+  await expect(page.getByText('已從外部成員名單移除「Amy Lin」')).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: /Amy Lin/ })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.MuiChip-root', { hasText: 'Amy Lin' })).toBeVisible();
   err.assertNone();
 });
