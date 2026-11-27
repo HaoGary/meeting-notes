@@ -31,11 +31,11 @@ export default function ForgotPasswordPage({ api, go }) {
   if (sent) {
     return (
       <AuthLayout>
-        <AuthHeader icon={<MarkEmailReadOutlined />} title="請檢查您的信箱" subtitle={<>若 <b>{sent}</b> 已註冊，您將收到一封重設密碼的郵件。請於 30 分鐘內點擊信中連結設定新密碼。</>} />
+        <AuthHeader title="請檢查您的信箱" subtitle={<>若 <b>{sent}</b> 已註冊，您將收到一封重設密碼的郵件。請於 30 分鐘內點擊信中連結設定新密碼。</>} />
         {alert && <Alert severity="error" sx={{ mb: 2.5 }}>{alert}</Alert>}
-        <Alert severity="info" icon={false} sx={{ mb: 3, bgcolor: 'grey.50', color: 'text.secondary' }}>
-          沒收到信？請確認垃圾郵件匣，或確認 Email 是否正確。
-        </Alert>
+        <Box sx={{ mb: 2.5, px: 2, py: 1.5, borderRadius: '8px', border: 1, borderColor: 'divider', bgcolor: 'background.paper', color: 'text.secondary', fontSize: 14 }}>
+          請確認垃圾郵件匣，或確認 Email 是否正確。
+        </Box>
         <Button variant="contained" size="large" fullWidth sx={{ height: 46 }} onClick={() => go({ page: 'login' })}>返回登入</Button>
         <Stack alignItems="center" gap={1.25} sx={{ mt: 3 }}>
           <Typography fontSize={14} color="text.secondary">
@@ -50,11 +50,11 @@ export default function ForgotPasswordPage({ api, go }) {
   return (
     <AuthLayout>
       <Button startIcon={<ArrowBack />} color="inherit" onClick={() => go({ page: 'login' })} sx={{ mb: 3, ml: -1, color: 'text.secondary' }}>返回登入</Button>
-      <AuthHeader icon={<LockResetOutlined />} title="忘記密碼" subtitle="輸入註冊時使用的 Email，我們會寄送重設密碼連結給您。" />
+      <AuthHeader title="忘記密碼" subtitle="輸入註冊時使用的 Email，我們會寄送重設密碼連結給您。" />
       {alert && <Alert severity="error" sx={{ mb: 2.5 }} onClose={() => setAlert(null)}>{alert}</Alert>}
       <FormStack onSubmit={submit}>
         <Field id="forgot-email" label="Email" type="email" placeholder="name@company.com" autoComplete="email" autoFocus {...form.field('email')} />
-        <SubmitButton loading={form.submitting}>寄送重設密碼連結</SubmitButton>
+        <SubmitButton loading={form.submitting}>寄送連結</SubmitButton>
       </FormStack>
     </AuthLayout>
   );

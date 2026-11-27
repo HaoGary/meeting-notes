@@ -19,6 +19,8 @@ import TablePager, { usePaged } from '../../components/common/TablePager';
 import { AppDialog, UserAvatar, fmtRel, useToast } from '../../components/common/ui';
 import { useForm } from '../../hooks/useForm';
 import { adminUserSchema } from '../../utils/validators';
+import FilterBar from '../../components/common/FilterBar';
+import { useDevice } from '../../hooks/useDevice';
 
 const STATUS = [['', '所有狀態'], ['active', '啟用中'], ['locked', '已鎖定'], ['pending', '待設定密碼／未驗證'], ['disabled', '已停用']]
   .filter(([k]) => k !== 'locked' || features.loginLock); // Supabase 版不做登入鎖定
@@ -103,6 +105,7 @@ function TempPasswordDialog({ data, onClose }) {
 }
 
 export default function AccountsPage({ api, currentUser, canSetRole }) {
+  const { isMobile } = useDevice();
   const toast = useToast();
   const [users, setUsers] = useState(null);
   const [roles, setRoles] = useState([]);
@@ -144,26 +147,99 @@ export default function AccountsPage({ api, currentUser, canSetRole }) {
   const changeRole = (u, roleId) => run(() => api.admin.updateUser(u.id, { roleId }), `已將「${u.name}」設為「${roles.find((r) => r.id === roleId)?.name}」`);
   const toggleActive = (u) => (u.active ? act('disable', u) : run(() => api.admin.updateUser(u.id, { active: true }), `已啟用「${u.name}」`));
 
+  // ── 各欄位內容（桌面表格與手機卡片共用）──
+  const userCell = (u) => (
+    <Stack direction="row" alignItems="center" gap={1.25}>
+      <UserAvatar user={u} size={34} />
+      <Box minWidth={0}>
+        <Stack direction="row" alignItems="center" gap={0.75} flexWrap="wrap">
+          <Typography fontWeight={600} fontSize={14}>{u.name}</Typography>
+          <Typography fontSize={12.5} color="text.disabled">@{u.username}</Typography>
+          {u.id === currentUser.id && <Chip size="small" label="你" sx={{ height: 18, fontSize: 11 }} />}
+        </Stack>
+        <Typography fontSize={12.5} color="text.secondary" noWrap>{u.email}</Typography>
+      </Box>
+    </Stack>
+  );
+  const roleCell = (u) => {
+    const self = u.id === currentUser.id;
+    const role = roles.find((r) => r.id === u.roleId);
+    return canSetRole ? (
+      <Tooltip title={self ? '無法變更自己的角色' : ''}>
+        <span>
+          <Select fullWidth size="small" value={u.roleId} disabled={self || busy} onChange={(e) => changeRole(u, e.target.value)} inputProps={{ 'aria-label': `${u.name} 的角色` }}
+            renderValue={() => <Stack direction="row" alignItems="center" gap={1}><Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: role?.color || 'grey.400' }} />{role?.name}</Stack>}>
+            {roles.map((r) => <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>)}
+          </Select>
+        </span>
+      </Tooltip>
+    ) : <Typography fontSize={14}>{u.roleName}</Typography>;
+  };
+  const statusCell = (u) => (
+    <Stack direction="row" gap={0.75} flexWrap="wrap">
+      {u.locked && <Chip size="small" color="error" variant="outlined" label="已鎖定" sx={{ height: 22 }} />}
+      {u.pendingInvite && <Chip size="small" color="warning" variant="outlined" label="待設定密碼" sx={{ height: 22 }} />}
+      {!u.pendingInvite && !u.emailVerified && <Chip size="small" color="warning" variant="outlined" label="Email 未驗證" sx={{ height: 22 }} />}
+      {u.mustChangePassword && <Chip size="small" variant="outlined" label="待變更臨時密碼" sx={{ height: 22 }} />}
+      {u.sessionCount > 0 && <Chip size="small" label={`${u.sessionCount} 台裝置登入中`} sx={{ height: 22, bgcolor: '#ecfdf5', color: 'success.dark' }} />}
+      {!u.locked && !u.pendingInvite && u.emailVerified && !u.mustChangePassword && !u.sessionCount && <Typography fontSize={13} color="text.disabled">—</Typography>}
+    </Stack>
+  );
+  const activeCell = (u) => {
+    const self = u.id === currentUser.id;
+    return (
+      <Tooltip title={self ? '無法停用自己的帳號' : ''}>
+        <Stack direction="row" alignItems="center" gap={0.5}>
+          <Switch size={isMobile ? 'medium' : 'small'} checked={u.active} disabled={self || busy} onChange={() => toggleActive(u)} slotProps={{ input: { 'aria-label': `${u.name} 帳號狀態` } }} />
+          <Typography fontSize={12.5} color={u.active ? 'success.main' : 'text.disabled'}>{u.active ? '啟用' : '停用'}</Typography>
+        </Stack>
+      </Tooltip>
+    );
+  };
+  const menuBtn = (u) => <IconButton size="small" aria-label={`${u.name} 更多操作`} onClick={(e) => setMenu({ el: e.currentTarget, u })}><MoreVert fontSize="small" /></IconButton>;
+
   return (
     <Box sx={{ flex: 1, overflow: 'auto' }}>
       <PageHeader crumbs={[{ label: '系統設定' }, { label: '帳號管理' }]} title="帳號管理" subtitle="管理使用者帳號、密碼與登入狀態。所有操作都會記錄在權限管理的異動紀錄中。" />
-      <Box sx={{ px: { xs: 2, md: 3 }, pb: 12 }}>
+      <Box sx={{ px: { xs: 1.5, sm: 2, md: 3 }, pb: 12 }}>
         <Paper variant="outlined" sx={{ borderRadius: 2.5, overflow: 'hidden' }}>
-          <Stack direction="row" flexWrap="wrap" gap={1.25} alignItems="center" sx={{ p: 1.5 }}>
-            <TextField placeholder="搜尋姓名、帳號或 Email" value={q} onChange={(e) => setQ(e.target.value)} sx={{ flex: '1 1 220px', maxWidth: { md: 320 } }}
-              slotProps={{ input: { startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> } }} />
-            <TextField select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} sx={{ minWidth: 140, flex: { xs: '1 1 140px', md: 'none' } }}
-              slotProps={{ select: { displayEmpty: true }, htmlInput: { 'aria-label': '角色篩選' } }}>
-              <MenuItem value="">所有角色</MenuItem>
-              {roles.map((r) => <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>)}
-            </TextField>
-            <TextField select value={status} onChange={(e) => setStatus(e.target.value)} sx={{ minWidth: 150, flex: { xs: '1 1 140px', md: 'none' } }}
-              slotProps={{ select: { displayEmpty: true }, htmlInput: { 'aria-label': '狀態篩選' } }}>
-              {STATUS.map(([k, l]) => <MenuItem key={k} value={k}>{l}</MenuItem>)}
-            </TextField>
-            <Button variant="contained" startIcon={<Add />} onClick={() => act('create')} sx={{ height: 40, flex: 'none', ml: 'auto' }}>新增帳號</Button>
-          </Stack>
+          <FilterBar activeCount={(roleFilter ? 1 : 0) + (status ? 1 : 0)}
+            search={<TextField fullWidth placeholder="搜尋姓名、帳號或 Email" value={q} onChange={(e) => setQ(e.target.value)}
+              slotProps={{ input: { startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> } }} />}
+            filters={[
+              <TextField key="role" select fullWidth value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}
+                slotProps={{ select: { displayEmpty: true }, htmlInput: { 'aria-label': '角色篩選' } }}>
+                <MenuItem value="">所有角色</MenuItem>
+                {roles.map((r) => <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>)}
+              </TextField>,
+              <TextField key="status" select fullWidth value={status} onChange={(e) => setStatus(e.target.value)}
+                slotProps={{ select: { displayEmpty: true }, htmlInput: { 'aria-label': '狀態篩選' } }}>
+                {STATUS.map(([k, l]) => <MenuItem key={k} value={k}>{l}</MenuItem>)}
+              </TextField>,
+            ]}
+            action={<Button variant="contained" startIcon={<Add />} onClick={() => act('create')} sx={{ height: 40 }}>新增帳號</Button>} />
 
+          {isMobile ? (
+            /* 手機版：每個帳號一張卡片，欄位與桌面表格相同 */
+            <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0, borderTop: 1, borderColor: 'divider' }}>
+              {!users && [0, 1, 2].map((i) => <Box component="li" key={i} sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}><Skeleton width="60%" /><Skeleton width="80%" /><Skeleton width="50%" /></Box>)}
+              {pageRows.map((u) => (
+                <Box component="li" key={u.id} sx={{ px: 2, py: 1.75, borderBottom: 1, borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}>
+                  <Stack direction="row" alignItems="flex-start" gap={1}>
+                    <Box sx={{ flex: 1, minWidth: 0, opacity: u.active ? 1 : 0.55 }}>{userCell(u)}</Box>
+                    <Box sx={{ flex: 'none', mr: -1, mt: -0.5 }}>{menuBtn(u)}</Box>
+                  </Stack>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '72px 1fr', alignItems: 'center', columnGap: 1.5, rowGap: 1.25, mt: 1.5, fontSize: 13 }}>
+                    <Typography fontSize={12.5} color="text.disabled">角色</Typography><Box sx={{ minWidth: 0 }}>{roleCell(u)}</Box>
+                    <Typography fontSize={12.5} color="text.disabled">登入狀態</Typography><Box>{statusCell(u)}</Box>
+                    <Typography fontSize={12.5} color="text.disabled">最後登入</Typography><Typography fontSize={13.5} color="text.secondary">{u.lastLoginAt ? fmtRel(u.lastLoginAt) : '尚未登入'}</Typography>
+                    <Typography fontSize={12.5} color="text.disabled">帳號</Typography><Box>{activeCell(u)}</Box>
+                  </Box>
+                </Box>
+              ))}
+              {users && !list.length && <Box component="li" sx={{ py: 6, textAlign: 'center', color: 'text.disabled' }}>沒有符合條件的帳號</Box>}
+            </Box>
+          ) : (
           <TableContainer>
             <Table sx={{ minWidth: 820, '& th': { bgcolor: '#f9fafb', color: 'text.secondary', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap' } }}>
               <TableHead>
@@ -171,72 +247,28 @@ export default function AccountsPage({ api, currentUser, canSetRole }) {
                   <TableCell>使用者</TableCell>
                   <TableCell sx={{ width: 190 }}>角色</TableCell>
                   <TableCell>登入狀態</TableCell>
-                  <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>最後登入</TableCell>
+                  <TableCell>最後登入</TableCell>
                   <TableCell sx={{ width: 104 }}>帳號</TableCell>
                   <TableCell sx={{ width: 52 }} />
                 </TableRow>
               </TableHead>
               <TableBody>
                 {!users && [0, 1, 2].map((i) => <TableRow key={i}>{[0, 1, 2, 3, 4, 5].map((j) => <TableCell key={j}><Skeleton /></TableCell>)}</TableRow>)}
-                {pageRows.map((u) => {
-                  const self = u.id === currentUser.id;
-                  const role = roles.find((r) => r.id === u.roleId);
-                  return (
-                    <TableRow key={u.id} hover sx={{ '& td': { opacity: u.active ? 1 : 0.55 }, '& td:last-child': { opacity: 1 }, '&:last-child td': { borderBottom: 0 } }}>
-                      <TableCell>
-                        <Stack direction="row" alignItems="center" gap={1.25}>
-                          <UserAvatar user={u} size={34} />
-                          <Box minWidth={0}>
-                            <Stack direction="row" alignItems="center" gap={0.75} flexWrap="wrap">
-                              <Typography fontWeight={600} fontSize={14}>{u.name}</Typography>
-                              <Typography fontSize={12.5} color="text.disabled">@{u.username}</Typography>
-                              {self && <Chip size="small" label="你" sx={{ height: 18, fontSize: 11 }} />}
-                            </Stack>
-                            <Typography fontSize={12.5} color="text.secondary" noWrap>{u.email}</Typography>
-                          </Box>
-                        </Stack>
-                      </TableCell>
-                      <TableCell>
-                        {canSetRole ? (
-                          <Tooltip title={self ? '無法變更自己的角色' : ''}>
-                            <span>
-                              <Select fullWidth size="small" value={u.roleId} disabled={self || busy} onChange={(e) => changeRole(u, e.target.value)} inputProps={{ 'aria-label': `${u.name} 的角色` }}
-                                renderValue={() => <Stack direction="row" alignItems="center" gap={1}><Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: role?.color || 'grey.400' }} />{role?.name}</Stack>}>
-                                {roles.map((r) => <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>)}
-                              </Select>
-                            </span>
-                          </Tooltip>
-                        ) : <Typography fontSize={14}>{u.roleName}</Typography>}
-                      </TableCell>
-                      <TableCell>
-                        <Stack direction="row" gap={0.75} flexWrap="wrap">
-                          {u.locked && <Chip size="small" color="error" variant="outlined" label="已鎖定" sx={{ height: 22 }} />}
-                          {u.pendingInvite && <Chip size="small" color="warning" variant="outlined" label="待設定密碼" sx={{ height: 22 }} />}
-                          {!u.pendingInvite && !u.emailVerified && <Chip size="small" color="warning" variant="outlined" label="Email 未驗證" sx={{ height: 22 }} />}
-                          {u.mustChangePassword && <Chip size="small" variant="outlined" label="待變更臨時密碼" sx={{ height: 22 }} />}
-                          {u.sessionCount > 0 && <Chip size="small" label={`${u.sessionCount} 台裝置登入中`} sx={{ height: 22, bgcolor: '#ecfdf5', color: 'success.dark' }} />}
-                          {!u.locked && !u.pendingInvite && u.emailVerified && !u.mustChangePassword && !u.sessionCount && <Typography fontSize={13} color="text.disabled">—</Typography>}
-                        </Stack>
-                      </TableCell>
-                      <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' }, color: 'text.secondary', whiteSpace: 'nowrap', fontSize: 13.5 }}>{u.lastLoginAt ? fmtRel(u.lastLoginAt) : '尚未登入'}</TableCell>
-                      <TableCell>
-                        <Tooltip title={self ? '無法停用自己的帳號' : ''}>
-                          <Stack direction="row" alignItems="center" gap={0.5}>
-                            <Switch size="small" checked={u.active} disabled={self || busy} onChange={() => toggleActive(u)} slotProps={{ input: { 'aria-label': `${u.name} 帳號狀態` } }} />
-                            <Typography fontSize={12.5} color={u.active ? 'success.main' : 'text.disabled'}>{u.active ? '啟用' : '停用'}</Typography>
-                          </Stack>
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell align="right">
-                        <IconButton size="small" aria-label={`${u.name} 更多操作`} onClick={(e) => setMenu({ el: e.currentTarget, u })}><MoreVert fontSize="small" /></IconButton>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {pageRows.map((u) => (
+                  <TableRow key={u.id} hover sx={{ '& td': { opacity: u.active ? 1 : 0.55 }, '& td:last-child': { opacity: 1 }, '&:last-child td': { borderBottom: 0 } }}>
+                    <TableCell>{userCell(u)}</TableCell>
+                    <TableCell>{roleCell(u)}</TableCell>
+                    <TableCell>{statusCell(u)}</TableCell>
+                    <TableCell sx={{ color: 'text.secondary', whiteSpace: 'nowrap', fontSize: 13.5 }}>{u.lastLoginAt ? fmtRel(u.lastLoginAt) : '尚未登入'}</TableCell>
+                    <TableCell>{activeCell(u)}</TableCell>
+                    <TableCell align="right">{menuBtn(u)}</TableCell>
+                  </TableRow>
+                ))}
                 {users && !list.length && <TableRow><TableCell colSpan={6} sx={{ py: 6, textAlign: 'center', color: 'text.disabled' }}>沒有符合條件的帳號</TableCell></TableRow>}
               </TableBody>
             </Table>
           </TableContainer>
+          )}
           {users && <TablePager count={list.length} page={curPage} size={size} onPage={setPage} onSize={setSize} />}
         </Paper>
       </Box>

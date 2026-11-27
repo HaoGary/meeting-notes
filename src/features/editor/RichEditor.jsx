@@ -8,6 +8,7 @@ import SpeechToTextPanel from '../speech/SpeechToTextPanel';
 import { useSpeechToText } from '../speech/useSpeechToText';
 import { tidyDoc, describeStats, DEFAULT_TIDY } from './tidy/tidyDoc';
 import AiPolishDialog from '../ai-polish/AiPolishDialog';
+import ManualPolishDialog from '../ai-polish/ManualPolishDialog';
 import { useClaudeHost } from '../ai-polish/polishService';
 
 export default function RichEditor({ initialContent, editable = true, onChange, onSave, onUploadImage, onError, extraExtensions = [], placeholder, speechToText = false, tidy = false, aiPolish = false, onNotify }) {
@@ -115,7 +116,7 @@ export default function RichEditor({ initialContent, editable = true, onChange, 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <Toolbar editor={editor} disabled={!editable} onUploadImage={insertImage} onTidy={tidy && editable ? runTidy : null}
-        onAiPolish={aiPolish && editable && claudeHost ? () => setAiOpen(true) : null}
+        onAiPolish={aiPolish && editable ? () => setAiOpen(true) : null}
         speech={speechToText && editable ? {
           open: speechOpen, recording: ['starting', 'listening'].includes(speech.phase),
           onToggle: () => {
@@ -124,10 +125,12 @@ export default function RichEditor({ initialContent, editable = true, onChange, 
             else if (speech.phase !== 'starting' && speech.phase !== 'finishing') closeSpeech();
           },
         } : null} />
-      {aiPolish && claudeHost && editor && (
-        <AiPolishDialog open={aiOpen} onClose={() => setAiOpen(false)} editor={editor}
-          onApplied={() => onNotify?.('已套用 AI 潤飾', 'success', { label: '復原', onClick: () => editorRef.current?.chain().focus().undo().run() })} />
-      )}
+      {/* 在 Claude 中開啟時直接呼叫 Claude；一般網站改用「複製到自己的 AI、再貼回來」的手動模式，不需要 API 金鑰 */}
+      {aiPolish && editor && (() => {
+        const Dlg = claudeHost ? AiPolishDialog : ManualPolishDialog;
+        return <Dlg open={aiOpen} onClose={() => setAiOpen(false)} editor={editor}
+          onApplied={() => onNotify?.('已套用 AI 潤飾', 'success', { label: '復原', onClick: () => editorRef.current?.chain().focus().undo().run() })} />;
+      })()}
       {speechOpen && (
         <SpeechToTextPanel speech={speech} language={language} onLanguage={setLanguage} onInsert={insertSpeech} onClose={closeSpeech}
           insertHint={focused.current ? '將插入到游標位置' : '將加到內容最後'} />

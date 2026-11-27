@@ -82,7 +82,7 @@ export function SaveStatus({ status, savedAt, error, onRetry }) {
   if (status === 'conflict') return <Box sx={{ ...base, color: 'error.main', bgcolor: '#fef2f2' }}><ErrorOutline sx={{ fontSize: 16 }} />內容衝突</Box>;
   return (
     <Box sx={{ ...base, color: 'success.main' }}>
-      <CloudDoneOutlined sx={{ fontSize: 17 }} />已儲存{time && <Box component="span" sx={{ color: 'text.disabled' }}>{time}</Box>}
+      <CloudDoneOutlined sx={{ fontSize: 17 }} />已儲存{time && <Box component="span" sx={{ color: 'text.disabled', display: { xs: 'none', sm: 'inline' } }}>{time}</Box>}
     </Box>
   );
 }

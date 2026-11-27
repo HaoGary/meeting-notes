@@ -10,9 +10,10 @@ import Refresh from '@mui/icons-material/Refresh';
 import PlayArrowRounded from '@mui/icons-material/PlayArrowRounded';
 import LoginRounded from '@mui/icons-material/LoginRounded';
 import ReadOnlyContent from '../editor/ReadOnlyContent';
-import { CLAUDE_LOGIN_URL, polishDocument, toSections, sectionsPayload } from './polishService';
+import { CLAUDE_LOGIN_URL, polishDocument, toSections, sectionsPayload, missingNumbers } from './polishService';
+import ClassifyToggle, { NumberCheck } from './ClassifyToggle';
 
-function Pane({ title, doc, highlight, loading }) {
+export function Pane({ title, doc, highlight, loading }) {
   return (
     <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', border: 1, borderColor: highlight ? 'primary.main' : 'divider', borderRadius: 2, overflow: 'hidden' }}>
       <Box sx={{ px: 2, py: 1, bgcolor: highlight ? 'primary.light' : 'grey.50', borderBottom: 1, borderColor: highlight ? 'primary.main' : 'divider' }}>
@@ -57,6 +58,7 @@ export default function AiPolishDialog({ open, onClose, editor, onApplied }) {
   const [source, setSource] = useState(null);
   const [steps, setSteps] = useState([]);
   const [tab, setTab] = useState('after');
+  const [classify, setClassify] = useState(true);
   const ctrl = useRef(null);
 
   const initSteps = (doc) => {
@@ -65,13 +67,13 @@ export default function AiPolishDialog({ open, onClose, editor, onApplied }) {
   };
   const setStep = (index, status) => setSteps((list) => list.map((s) => (s.index === index ? { ...s, status } : s)));
 
-  const run = async (doc, { fresh = false, resume = {} } = {}) => {
+  const run = async (doc, { fresh = false, resume = {}, cls = classify } = {}) => {
     ctrl.current?.abort();
     const ac = new AbortController(); ctrl.current = ac;
     setState({ phase: 'loading', partialDoc: state.error?.partial?.doc });
     setSteps((list) => list.map((s) => (resume[s.index] ? { ...s, status: 'done' } : { ...s, status: 'pending' })));
     try {
-      const r = await polishDocument(doc, { signal: ac.signal, fresh, resume, onStep: setStep });
+      const r = await polishDocument(doc, { signal: ac.signal, fresh, resume: cls ? {} : resume, onStep: setStep, classify: cls });
       if (!ac.signal.aborted) setState({ phase: 'done', ...r });
     } catch (e) {
       if (e.code === 'aborted' && ac !== ctrl.current) return;
@@ -124,15 +126,17 @@ export default function AiPolishDialog({ open, onClose, editor, onApplied }) {
             <Typography fontSize={13} color="text.secondary">
               逐一整理各區塊：口語改為精簡書面條列，保留人名、數字、日期與連結；標題、表格與圖片不會變動。使用您的 Claude 帳號額度，額度用完時會自動停止。
             </Typography>
+            <ClassifyToggle checked={classify} disabled={loading} onChange={(v) => { setClassify(v); initSteps(source); run(source, { fresh: true, cls: v }); }} />
             {loading && (
               <Typography fontSize={12.5} color="text.secondary">
-                {working ? `正在整理「${working.heading || '開頭內容'}」（${doneCount + 1} / ${steps.length}）…` : '準備中…'}
+                {classify ? '正在整理並分類全部內容…' : working ? `正在整理「${working.heading || '開頭內容'}」（${doneCount + 1} / ${steps.length}）…` : '準備中…'}
                 {doneCount === 0 && '　第一次使用時，Claude 會詢問是否允許此頁面使用您的帳號。'}
               </Typography>
             )}
             {err && !['empty', 'too_long', 'unavailable'].includes(err.code) && <StopNotice error={err} steps={steps} />}
             {err && ['empty', 'too_long'].includes(err.code) && <Alert severity="info">{err.message}</Alert>}
             {state.phase === 'done' && state.done < state.total && <Alert severity="info" sx={{ py: 0 }}>有 {state.total - state.done} 個區塊未處理，已保留原文。</Alert>}
+            {state.phase === 'done' && <NumberCheck missing={missingNumbers(source, state.doc)} />}
 
             <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               {narrow ? (

@@ -5,13 +5,20 @@ import Visibility from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOff from '@mui/icons-material/VisibilityOffOutlined';
 import CheckCircle from '@mui/icons-material/CheckCircle';
 import RadioButtonUnchecked from '@mui/icons-material/RadioButtonUnchecked';
-import DashboardOutlined from '@mui/icons-material/DashboardOutlined';
 import EventNoteOutlined from '@mui/icons-material/EventNoteOutlined';
 import ShieldOutlined from '@mui/icons-material/ShieldOutlined';
 import ShareOutlined from '@mui/icons-material/ShareOutlined';
 import { PASSWORD_RULES } from '../../utils/validators';
+import brandBg from '../../assets/auth/brand-bg.webp';
+import logo from '../../assets/auth/logo.png';
+import logoWhite from '../../assets/auth/logo-white.png';
 
 // ── 版面：左側品牌區（桌面）＋ 右側表單 ──
+// 品牌區依 Figma 設計稿（會議紀錄系統 › 01–03）：背景插圖、Meeting Notes 標誌（105×40）、主色標語
+function BrandLogo() {
+  return <Box component="img" src={logo} alt="Meeting Notes" sx={{ width: 105, height: 40, display: 'block' }} />;
+}
+
 export function AuthLayout({ children }) {
   const features = [
     [EventNoteOutlined, '會議紀錄與自動儲存', '像文件一樣編輯，停止輸入即自動儲存'],
@@ -21,34 +28,27 @@ export function AuthLayout({ children }) {
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: 'background.default' }}>
       <Box sx={{ display: { xs: 'none', md: 'flex' }, flexDirection: 'column', width: '42%', maxWidth: 560, p: 6, color: '#fff',
-        background: 'linear-gradient(155deg, #4f46e5 0%, #3730a3 70%, #312e81 100%)', position: 'relative', overflow: 'hidden' }}>
-        <Box sx={{ position: 'absolute', width: 420, height: 420, borderRadius: '50%', right: -160, bottom: -140, bgcolor: 'rgba(255,255,255,.06)' }} />
-        <Box sx={{ position: 'absolute', width: 260, height: 260, borderRadius: '50%', right: 60, top: -120, bgcolor: 'rgba(255,255,255,.05)' }} />
-        <Stack direction="row" alignItems="center" gap={1.25}>
-          <Box sx={{ width: 34, height: 34, borderRadius: 2, bgcolor: 'rgba(255,255,255,.16)', display: 'grid', placeItems: 'center' }}><DashboardOutlined sx={{ fontSize: 20 }} /></Box>
-          <Typography fontWeight={700} fontSize={17}>管理後台</Typography>
-        </Stack>
-        <Box sx={{ my: 'auto', position: 'relative' }}>
-          <Typography sx={{ fontSize: 30, fontWeight: 700, lineHeight: 1.35, mb: 1.5 }}>讓每一場會議<br />都留下清楚的紀錄</Typography>
-          <Typography sx={{ opacity: 0.8, mb: 5 }}>集中管理會議內容、決議與參與人員。</Typography>
+        position: 'relative', overflow: 'hidden', bgcolor: 'primary.dark',
+        // 背景插圖上疊一層品牌藍紫色遮罩（設計稿：rgba(24,13,204,.4)）
+        backgroundImage: `linear-gradient(rgba(24,13,204,.4), rgba(24,13,204,.4)), url(${brandBg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+        <Box component="img" src={logoWhite} alt="Meeting Notes" sx={{ width: 132, height: 50, display: 'block' }} />
+        <Box sx={{ my: 'auto', pb: '134px', position: 'relative' }}>
+          <Typography sx={{ fontSize: 30, fontWeight: 700, lineHeight: 1.35, color: '#fff', mb: 4.5 }}>讓每一場會議<br />都留下清楚紀錄</Typography>
           <Stack gap={2.5}>
             {features.map(([I, t, d]) => (
-              <Stack key={t} direction="row" gap={1.75}>
-                <Box sx={{ width: 38, height: 38, flex: 'none', borderRadius: 2, bgcolor: 'rgba(255,255,255,.12)', display: 'grid', placeItems: 'center' }}><I sx={{ fontSize: 20 }} /></Box>
-                <Box><Typography fontWeight={600}>{t}</Typography><Typography fontSize={13} sx={{ opacity: 0.75 }}>{d}</Typography></Box>
+              <Stack key={t} direction="row" alignItems="center" gap={1.75}>
+                <Box sx={{ width: 38, height: 38, flex: 'none', borderRadius: '10px', bgcolor: 'rgba(255,255,255,.12)', color: '#fff', display: 'grid', placeItems: 'center' }}><I sx={{ fontSize: 20 }} /></Box>
+                <Box><Typography fontWeight={700} fontSize={15} lineHeight={1.4}>{t}</Typography><Typography fontSize={13} sx={{ color: 'rgba(255,255,255,.75)' }}>{d}</Typography></Box>
               </Stack>
             ))}
           </Stack>
         </Box>
-        <Typography fontSize={12} sx={{ opacity: 0.6 }}>© {new Date().getFullYear()} 管理後台</Typography>
+        <Typography fontSize={12} sx={{ color: 'rgba(255,255,255,.6)' }}>© {new Date().getFullYear()} 管理後台</Typography>
       </Box>
 
       <Stack flex={1} alignItems="center" justifyContent="center" sx={{ px: { xs: 2.5, sm: 4 }, py: { xs: 4, sm: 6 } }}>
         <Box sx={{ width: '100%', maxWidth: 420 }}>
-          <Stack direction="row" alignItems="center" gap={1.25} sx={{ display: { xs: 'flex', md: 'none' }, mb: 4 }}>
-            <Box sx={{ width: 32, height: 32, borderRadius: 1.75, bgcolor: 'primary.main', color: '#fff', display: 'grid', placeItems: 'center' }}><DashboardOutlined sx={{ fontSize: 19 }} /></Box>
-            <Typography fontWeight={700} fontSize={16}>管理後台</Typography>
-          </Stack>
+          <Box sx={{ display: { xs: 'flex', md: 'none' }, mb: 4 }}><BrandLogo /></Box>
           {children}
         </Box>
       </Stack>
@@ -56,10 +56,10 @@ export function AuthLayout({ children }) {
   );
 }
 
-export function AuthHeader({ icon, title, subtitle }) {
+// 標題區不放圖示（依設計稿）
+export function AuthHeader({ title, subtitle }) {
   return (
     <Box sx={{ mb: 3.5 }}>
-      {icon && <Box sx={{ width: 48, height: 48, borderRadius: 2.5, bgcolor: 'primary.light', color: 'primary.main', display: 'grid', placeItems: 'center', mb: 2.5 }}>{icon}</Box>}
       <Typography component="h1" sx={{ fontSize: 26, fontWeight: 700, mb: 0.75 }}>{title}</Typography>
       {subtitle && <Typography color="text.secondary" fontSize={14.5}>{subtitle}</Typography>}
     </Box>
@@ -126,5 +126,5 @@ export function PasswordChecklist({ value = '' }) {
 }
 
 export function TextLink({ onClick, children, ...p }) {
-  return <Link component="button" type="button" underline="hover" onClick={onClick} sx={{ fontWeight: 600, fontSize: 'inherit', verticalAlign: 'baseline' }} {...p}>{children}</Link>;
+  return <Link component="button" type="button" underline="hover" onClick={onClick} sx={{ fontWeight: 600, fontSize: 'inherit', verticalAlign: 'baseline', py: { xs: 1.25, sm: 0 }, my: { xs: -1.25, sm: 0 } }} {...p}>{children}</Link>;
 }

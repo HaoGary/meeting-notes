@@ -5,7 +5,6 @@ import {
   TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
 import Add from '@mui/icons-material/Add';
-import LockOutlined from '@mui/icons-material/LockOutlined';
 import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import { PERMISSIONS } from '../../services/seed';
 import { AppDialog, useToast } from '../../components/common/ui';
@@ -63,21 +62,21 @@ export default function RolesTab({ api, onChanged }) {
     <Box>
       {/* 工具列：與帳號管理、會議紀錄一致，主要按鈕固定在右側 */}
       <Stack direction="row" flexWrap="wrap" gap={1.25} alignItems="center" sx={{ p: 1.5 }}>
-        <Button variant="contained" startIcon={<Add />} onClick={() => setNewOpen(true)} sx={{ height: 40, flex: 'none', ml: 'auto' }}>新增角色</Button>
+        <Button variant="contained" startIcon={<Add />} onClick={() => setNewOpen(true)} sx={{ height: { xs: 44, sm: 40 }, flex: { xs: '1 1 100%', sm: 'none' }, ml: 'auto' }}>新增角色</Button>
       </Stack>
 
+      {/* 權限矩陣：所有角色欄都保留；空間不足時左右捲動，第一欄（權限項目）固定在左側 */}
       <TableContainer sx={{ borderTop: 1, borderColor: 'divider' }}>
-        <Table sx={{ minWidth: 720, '& td, & th': { borderColor: 'divider' } }}>
+        <Table sx={{ minWidth: { xs: 160 + roles.length * 108, sm: 720 }, '& td, & th': { borderColor: 'divider' },
+          '& td:first-of-type:not(.group-cell), & th:first-of-type': { position: 'sticky', left: 0, zIndex: 1, bgcolor: 'background.paper', boxShadow: { xs: 'inset -1px 0 0 #e5e7eb', lg: 'none' } } }}>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ bgcolor: '#f9fafb', width: 280, fontSize: 12.5, color: 'text.secondary', fontWeight: 600 }}>權限項目</TableCell>
+              <TableCell sx={{ bgcolor: '#f9fafb !important', width: { xs: 160, sm: 280 }, minWidth: { xs: 160, sm: 220 }, fontSize: 12.5, color: 'text.secondary', fontWeight: 600 }}>權限項目</TableCell>
               {roles.map((r) => (
-                <TableCell key={r.id} align="center" sx={{ bgcolor: '#f9fafb', minWidth: 120, verticalAlign: 'top', py: 1.25 }}>
+                <TableCell key={r.id} align="center" sx={{ bgcolor: '#f9fafb', minWidth: { xs: 108, sm: 120 }, verticalAlign: 'top', py: 1.25, px: 1 }}>
                   <Stack alignItems="center" gap={0.25}>
                     <Stack direction="row" alignItems="center" gap={0.5}>
-                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: r.color }} />
                       <Typography fontWeight={650} fontSize={13.5}>{r.name}</Typography>
-                      {r.locked && <Tooltip title="系統角色，權限固定"><LockOutlined sx={{ fontSize: 14, color: 'text.disabled' }} /></Tooltip>}
                       {!r.locked && !['manager', 'member', 'viewer'].includes(r.id) && (
                         <Tooltip title="刪除角色"><IconButton size="small" onClick={() => setDelRole(r)} sx={{ p: 0.25 }}><DeleteOutline sx={{ fontSize: 15 }} /></IconButton></Tooltip>
                       )}
@@ -92,12 +91,15 @@ export default function RolesTab({ api, onChanged }) {
             {GROUPS.map((g) => (
               <Fragment key={g}>
                 <TableRow>
-                  <TableCell colSpan={roles.length + 1} sx={{ py: 0.75, bgcolor: '#fcfcfd', fontSize: 12, fontWeight: 600, color: 'text.disabled', letterSpacing: '.04em' }}>{g}</TableCell>
+                  <TableCell className="group-cell" colSpan={roles.length + 1} sx={{ py: 0.75, bgcolor: '#fcfcfd', fontSize: 12, fontWeight: 600, color: 'text.disabled', letterSpacing: '.04em' }}>
+                    {/* 分組標題固定在左側，左右滑動時不會跟著移動 */}
+                    <Box component="span" sx={{ position: 'sticky', left: 16, display: 'inline-block' }}>{g}</Box>
+                  </TableCell>
                 </TableRow>
                 {PERMISSIONS.filter((p) => p.group === g).map((p) => (
                   <TableRow key={p.key} hover>
                     <TableCell sx={{ py: 1 }}>
-                      <Typography fontSize={14} fontWeight={500}>{p.label}</Typography>
+                      <Typography fontSize={14} fontWeight={500} sx={{ wordBreak: 'break-word' }}>{p.label}</Typography>
                       <Typography fontSize={12} color="text.disabled">{p.desc}</Typography>
                     </TableCell>
                     {roles.map((r) => {
@@ -120,10 +122,10 @@ export default function RolesTab({ api, onChanged }) {
 
       {/* 未儲存變更列 */}
       <Slide direction="up" in={changeCount > 0} mountOnEnter unmountOnExit>
-        <Paper elevation={10} sx={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%) !important', zIndex: 1200,
-          px: 2, py: 1.25, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#111827', color: '#fff' }}>
-          <Typography fontSize={14}>有 <b>{changeCount}</b> 項權限變更尚未儲存</Typography>
-          <Button size="small" sx={{ color: '#d1d5db' }} onClick={() => setDraft({})} disabled={saving}>捨棄</Button>
+        <Paper elevation={10} sx={{ position: 'fixed', zIndex: 1200, bottom: { xs: 12, sm: 24 }, left: { xs: 12, sm: '50%' }, right: { xs: 12, sm: 'auto' },
+          transform: { sm: 'translateX(-50%) !important' }, px: 2, py: 1.25, borderRadius: 3, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: { xs: 1, sm: 2 }, bgcolor: '#111827', color: '#fff' }}>
+          <Typography fontSize={14} sx={{ flex: { xs: '1 1 100%', sm: 'none' } }}>有 <b>{changeCount}</b> 項權限變更尚未儲存</Typography>
+          <Button size="small" sx={{ color: '#d1d5db', ml: { xs: 'auto', sm: 0 } }} onClick={() => setDraft({})} disabled={saving}>捨棄</Button>
           <Button size="small" variant="contained" onClick={save} disabled={saving}>{saving ? '儲存中…' : '儲存變更'}</Button>
         </Paper>
       </Slide>

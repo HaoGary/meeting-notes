@@ -137,7 +137,7 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
   const menuAction = (fn) => () => { setMenuEl(null); fn(); };
 
   const panelContent = panel && (
-    <Box sx={{ width: { xs: '100vw', sm: PANEL_W }, height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'background.paper' }}>
+    <Box sx={{ width: { xs: '100vw', sm: PANEL_W }, maxWidth: '100%', height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'background.paper' }}>
       <Stack direction="row" alignItems="center" sx={{ borderBottom: 1, borderColor: 'divider', pl: 2, pr: 0.5, minHeight: 48 }}>
         <Typography fontWeight={600} fontSize={14} flex={1}>修改紀錄</Typography>
         <IconButton size="small" onClick={() => setPanel(null)} aria-label="關閉面板"><CloseIcon fontSize="small" /></IconButton>
@@ -149,12 +149,14 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {/* ── 上方：名稱、日期、狀態、操作 ── */}
-      <Stack component="header" direction="row" alignItems="center" gap={1}
+      {/* 手機：第一列為返回與操作按鈕，名稱與狀態換到第二列，避免名稱被擠到看不見 */}
+      <Stack component="header" direction="row" alignItems="center" gap={1} flexWrap={{ xs: 'wrap', sm: 'nowrap' }} rowGap={0.5}
         sx={{ px: { xs: 1, md: 2 }, py: 1, minHeight: 60, bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
         {backBtn}
         {/* 標題寬度隨文字自動伸縮（CSS grid 疊層技巧） */}
+        <Box sx={{ display: { xs: 'block', sm: 'none' }, order: 9, flexBasis: '100%', height: 0 }} />
         <Box data-value={meeting.title || '未命名會議'}
-          sx={{ display: 'inline-grid', minWidth: 0, maxWidth: 'min(620px, 100%)', flex: '0 1 auto',
+          sx={{ display: 'inline-grid', minWidth: 0, maxWidth: 'min(620px, 100%)', flex: { xs: '1 1 0', sm: '0 1 auto' }, order: { xs: 10, sm: 0 },
             '&::after, & .MuiInputBase-root': { gridArea: '1 / 1', fontSize: 18, fontWeight: 650, px: 0.75 },
             '&::after': { content: 'attr(data-value) "  "', visibility: 'hidden', whiteSpace: 'pre', overflow: 'hidden', height: 0, fontFamily: 'inherit' } }}>
           <InputBase value={meeting.title} disabled={!canEdit} placeholder="未命名會議" inputProps={{ 'aria-label': '會議名稱', size: 1 }}
@@ -166,7 +168,7 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
         </Box>
         <Tooltip title={canStatus ? '變更狀態' : ''}>
           <Box component="button" type="button" disabled={!canStatus} onClick={(e) => setStatusEl(e.currentTarget)} aria-label="會議狀態"
-            sx={{ border: 0, p: 0, bgcolor: 'transparent', cursor: canStatus ? 'pointer' : 'default', display: 'flex', flex: 'none' }}>
+            sx={{ border: 0, p: 0, py: { xs: 1, sm: 0 }, my: { xs: -1, sm: 0 }, bgcolor: 'transparent', cursor: canStatus ? 'pointer' : 'default', display: 'flex', flex: 'none', order: { xs: 11, sm: 0 } }}>
             <StatusChip status={meeting.status} />
           </Box>
         </Tooltip>
@@ -225,7 +227,8 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
 
         {wide
           ? panel && <Box sx={{ borderLeft: 1, borderColor: 'divider', display: 'flex' }}>{panelContent}</Box>
-          : <Drawer anchor="right" open={!!panel} onClose={() => setPanel(null)}>{panelContent}</Drawer>}
+          : <Drawer anchor="right" open={!!panel} onClose={() => setPanel(null)} sx={{ zIndex: (t) => t.zIndex.drawer + 2 }}
+              slotProps={{ paper: { sx: { maxWidth: '100vw' } } }}>{panelContent}</Drawer>}
       </Box>
 
       <AppDialog open={!!conflict} title="內容衝突" maxWidth="sm"

@@ -1,7 +1,9 @@
 import { createTheme } from '@mui/material/styles';
+import { BREAKPOINTS, MQ } from './breakpoints';
 
 // 正式整合時，改為沿用既有專案的 MUI theme。
 const theme = createTheme({
+  breakpoints: { values: BREAKPOINTS },
   palette: {
     primary: { main: '#4f46e5', light: '#eef2ff', dark: '#3730a3' },
     success: { main: '#059669' },
@@ -19,7 +21,15 @@ const theme = createTheme({
     h6: { fontWeight: 650 },
   },
   components: {
-    MuiButton: { defaultProps: { disableElevation: true } },
+    MuiButton: { defaultProps: { disableElevation: true }, styleOverrides: { root: { [MQ.mobile]: { minHeight: 40 } } } },
+    // 手機版：確保點擊範圍至少 40px，輸入框字級 16px 避免 iOS 自動放大
+    MuiIconButton: { styleOverrides: { root: { [MQ.mobile]: { minWidth: 40, minHeight: 40 } } } },
+    MuiOutlinedInput: { styleOverrides: { root: { [MQ.mobile]: { minHeight: 42 }, '& input, & textarea': { [MQ.mobile]: { fontSize: 16 } } } } },
+    MuiDialogTitle: { styleOverrides: { root: { [MQ.mobile]: { paddingLeft: 20, paddingRight: 48 } } } },
+    MuiDialogContent: { styleOverrides: { root: { [MQ.mobile]: { paddingLeft: 20, paddingRight: 20 } } } },
+    MuiDialogActions: { styleOverrides: { root: { [MQ.mobile]: { padding: '8px 20px 16px', flexWrap: 'wrap', gap: 8, '& > :not(style) ~ :not(style)': { marginLeft: 0 } } } } },
+    MuiPopover: { styleOverrides: { paper: { maxWidth: 'calc(100vw - 16px)' } } },
+    MuiMenu: { styleOverrides: { paper: { maxWidth: 'calc(100vw - 16px)' } } },
     MuiTextField: { defaultProps: { size: 'small' } },
     MuiInputBase: { styleOverrides: { root: { fontSize: 14 } } },
     MuiMenuItem: { styleOverrides: { root: { fontSize: 14 } } },
@@ -28,7 +38,8 @@ const theme = createTheme({
     MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
     MuiListItemButton: { styleOverrides: { root: { borderRadius: 6 } } },
     MuiChip: { styleOverrides: { root: { fontWeight: 500 } } },
-    MuiDialog: { styleOverrides: { paper: { borderRadius: 12 } } },
+    // 彈窗：手機版縮小外距、高度不超出螢幕，內容自行捲動
+    MuiDialog: { styleOverrides: { paper: { borderRadius: 12, [MQ.mobile]: { '&:not(.MuiDialog-paperFullScreen)': { margin: 12, width: 'calc(100% - 24px)', maxWidth: 'calc(100% - 24px) !important', maxHeight: 'calc(100% - 24px)' } } } } },
     // ── 日期／時間選擇器 ──
     MuiPickersPopper: { styleOverrides: { paper: { borderRadius: 12, marginTop: 6, border: '1px solid #e5e7eb',
       boxShadow: '0 12px 32px rgba(17,24,39,.14), 0 2px 6px rgba(17,24,39,.06)' } } },

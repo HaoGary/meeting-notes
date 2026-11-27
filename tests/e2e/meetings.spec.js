@@ -43,11 +43,12 @@ test('整理按鈕直接套用並可復原', async ({ page }) => {
   await expect(page.getByRole('button', { name: '復原' })).toBeVisible();
 });
 
-test('一般網站（無 Claude 環境）不顯示 AI 潤飾按鈕', async ({ page }) => {
+test('一般網站（無 Claude 環境）AI 潤飾使用手動模式', async ({ page }) => {
   await login(page, 'meeting-m1');
   await expect(page.locator('.prose')).toBeVisible();
   await page.waitForTimeout(5_500); // 環境偵測最多 5 秒
-  await expect(page.getByRole('button', { name: 'AI 潤飾' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'AI 潤飾' }).click();
+  await expect(page.getByRole('button', { name: '複製指令' })).toBeVisible();
 });
 
 test('Claude 預覽環境未登入時，AI 潤飾提示先登入', async ({ page }) => {

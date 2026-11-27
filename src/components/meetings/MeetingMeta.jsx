@@ -15,6 +15,7 @@ import GroupOutlined from '@mui/icons-material/GroupOutlined';
 import { MEETING_TYPES } from '../../services/seed';
 import { UserAvatar, fmtDate } from '../common/ui';
 import { DateInput, TimeInput } from '../common/pickers';
+import ArrowForward from '@mui/icons-material/ArrowForward';
 
 const fieldSx = {
   fontSize: 14, borderRadius: 1.5, px: 1, height: 32, transition: 'background .12s',
@@ -85,13 +86,13 @@ export default function MeetingMeta({ meeting, attendees, users, editable, onCha
       )}
       <Box sx={{ maxWidth: 1040, pr: { xs: 7, lg: 0 }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, columnGap: 5, rowGap: 0.25 }}>
         <Prop icon={EventOutlined} label="日期">
-          <DateInput variant="inline" id="meta-date" value={meeting.date} disabled={ro} onChange={(v) => onChange({ date: v })} width={200} />
+          <DateInput variant="inline" id="meta-date" value={meeting.date} disabled={ro} onChange={(v) => onChange({ date: v })} width={163} />
         </Prop>
         <Prop icon={ScheduleOutlined} label="時間" error={timeBad && '結束時間需晚於開始時間'}>
-          <Stack direction="row" alignItems="center" gap={0.5}>
-            <TimeInput variant="inline" id="meta-start" value={meeting.start} disabled={ro} onChange={(v) => onChange({ start: v })} error={!!timeBad} width={110} />
-            <Typography color="text.disabled">→</Typography>
-            <TimeInput variant="inline" id="meta-end" value={meeting.end} disabled={ro} onChange={(v) => onChange({ end: v })} error={!!timeBad} minTime={meeting.start} width={110} />
+          <Stack direction="row" alignItems="center" gap={0.25}>
+            <TimeInput variant="inline" id="meta-start" value={meeting.start} disabled={ro} onChange={(v) => onChange({ start: v })} error={!!timeBad} width={80} />
+            <ArrowForward sx={{ fontSize: 16, color: 'text.disabled' }} aria-label="至" />
+            <TimeInput variant="inline" id="meta-end" value={meeting.end} disabled={ro} onChange={(v) => onChange({ end: v })} error={!!timeBad} minTime={meeting.start} width={80} />
           </Stack>
         </Prop>
         <Prop icon={PlaceOutlined} label="地點">
@@ -134,14 +135,14 @@ export default function MeetingMeta({ meeting, attendees, users, editable, onCha
                       {u?.name}
                       <Tooltip title={ro ? (editor ? '可編輯' : '僅檢視') : `${editor ? '可編輯' : '僅檢視'}・點擊切換`}>
                         <Box component="button" type="button" disabled={ro} onClick={() => togglePerm(a.userId)} aria-label={`${u?.name} 權限`}
-                          sx={{ border: 0, p: 0, bgcolor: 'transparent', font: 'inherit', fontSize: 11.5, cursor: ro ? 'default' : 'pointer',
+                          sx={{ border: 0, p: 0, py: { xs: 1, sm: 0 }, px: { xs: 0.5, sm: 0 }, my: { xs: -1, sm: 0 }, bgcolor: 'transparent', font: 'inherit', fontSize: 11.5, cursor: ro ? 'default' : 'pointer',
                             color: editor ? 'primary.main' : 'text.disabled' }}>
                           {editor ? '編輯' : '檢視'}
                         </Box>
                       </Tooltip>
                     </Stack>
                   }
-                  sx={{ height: 28, bgcolor: '#fff', borderColor: 'divider', '& .MuiChip-deleteIcon': { fontSize: 16 } }} />
+                  sx={{ height: { xs: 36, sm: 28 }, borderRadius: 18, bgcolor: '#fff', borderColor: 'divider', '& .MuiChip-deleteIcon': { fontSize: { xs: 20, sm: 16 } } }} />
               );
             })}
             {!ro && notIn.length > 0 && (

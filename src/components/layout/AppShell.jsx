@@ -1,13 +1,13 @@
 // 後台版型：上方 AppBar + 左側導覽選單（只負責切換頁面）。
 // 正式整合時，這層會由既有專案的 Layout 取代，會議功能只註冊選單項目與路由。
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AppBar, Avatar, Badge, Box, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader,
-  Menu, MenuItem, Stack, Toolbar, Tooltip, Typography, useMediaQuery,
+  Menu, MenuItem, Stack, Toolbar, Tooltip, Typography,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import MenuOpen from '@mui/icons-material/MenuOpen';
-import DashboardOutlined from '@mui/icons-material/DashboardOutlined';
+import CloseIcon from '@mui/icons-material/Close';
 import EventNoteOutlined from '@mui/icons-material/EventNoteOutlined';
 import KeyboardArrowDown from '@mui/icons-material/KeyboardArrowDown';
 import AdminPanelSettingsOutlined from '@mui/icons-material/AdminPanelSettingsOutlined';
@@ -15,6 +15,7 @@ import ShieldOutlined from '@mui/icons-material/ShieldOutlined';
 import LogoutOutlined from '@mui/icons-material/LogoutOutlined';
 import ManageAccountsOutlined from '@mui/icons-material/ManageAccountsOutlined';
 import PeopleAltOutlined from '@mui/icons-material/PeopleAltOutlined';
+import { useDevice } from '../../hooks/useDevice';
 
 export const APPBAR_H = 56;
 const FULL_W = 232;
@@ -32,8 +33,13 @@ export const NAV = [
 ];
 
 export default function AppShell({ page, onNavigate, badges = {}, user, permissions = [], onLogout, notifications, children }) {
-  const desktop = useMediaQuery((t) => t.breakpoints.up('md'));
-  const [mini, setMini] = useState(false);
+  // 桌面（≥1200）：完整側邊選單，可手動收合
+  // 平板（768–1199）：預設收合成圖示列，可展開
+  // 手機（≤767）：漢堡選單＋抽屜式選單
+  const { isMobile, isDesktop } = useDevice();
+  const desktop = !isMobile; // 是否使用常駐側邊欄
+  const [mini, setMini] = useState(!isDesktop);
+  useEffect(() => { setMini(!isDesktop); }, [isDesktop]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userEl, setUserEl] = useState(null);
   const collapsed = desktop && mini;
@@ -44,8 +50,10 @@ export default function AppShell({ page, onNavigate, badges = {}, user, permissi
   const nav = (
     <Box component="nav" aria-label="主選單" sx={{ width: desktop ? width : FULL_W, transition: 'width .2s', overflowX: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
       {!desktop && (
-        <Stack direction="row" alignItems="center" gap={1.25} sx={{ height: APPBAR_H, px: 2.5 }}>
-          <Logo />
+        <Stack direction="row" alignItems="center" gap={1.25} sx={{ height: APPBAR_H, pl: 2.5, pr: 1, borderBottom: 1, borderColor: 'divider' }}>
+          <Typography fontWeight={600} fontSize={15}>選單</Typography>
+          <Box flex={1} />
+          <IconButton onClick={() => setMobileOpen(false)} aria-label="關閉選單"><CloseIcon /></IconButton>
         </Stack>
       )}
       <Box sx={{ flex: 1, overflowY: 'auto', py: 1.5 }}>
@@ -60,7 +68,7 @@ export default function AppShell({ page, onNavigate, badges = {}, user, permissi
               return (
                 <Tooltip key={it.key} title={collapsed ? it.label : ''} placement="right">
                   <ListItemButton selected={active} onClick={() => go(it.key)}
-                    sx={{ mb: collapsed ? 0.75 : 0.25, py: 1, px: collapsed ? 0 : 1.5, minHeight: 40, justifyContent: collapsed ? 'center' : 'flex-start',
+                    sx={{ mb: collapsed ? 0.75 : 0.25, py: 1, px: collapsed ? 0 : 1.5, minHeight: { xs: 48, sm: 40 }, justifyContent: collapsed ? 'center' : 'flex-start',
                       '&.Mui-selected': { bgcolor: 'primary.light', color: 'primary.dark', '& .MuiListItemIcon-root': { color: 'primary.main' } },
                       '&.Mui-selected:hover': { bgcolor: 'primary.light' } }}>
                     <ListItemIcon sx={{ minWidth: collapsed ? 0 : 36 }}>
@@ -84,11 +92,11 @@ export default function AppShell({ page, onNavigate, badges = {}, user, permissi
         sx={{ zIndex: (t) => t.zIndex.drawer + 1, bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
         <Toolbar sx={{ minHeight: `${APPBAR_H}px !important`, px: { xs: 1.5, md: 2 }, gap: 1 }}>
           <Tooltip title={desktop ? (mini ? '展開選單' : '收合選單') : '開啟選單'}>
-            <IconButton onClick={() => (desktop ? setMini((x) => !x) : setMobileOpen(true))} aria-label="切換選單">
+            <IconButton onClick={() => (desktop ? setMini((x) => !x) : setMobileOpen(true))} aria-label={desktop ? (mini ? '展開選單' : '收合選單') : '開啟選單'}
+              aria-expanded={desktop ? !mini : mobileOpen}>
               {desktop && !mini ? <MenuOpen /> : <MenuIcon />}
             </IconButton>
           </Tooltip>
-          <Logo />
           <Box flex={1} />
           {notifications}
           <Divider orientation="vertical" flexItem sx={{ my: 1.5, mx: 0.5 }} />
@@ -120,23 +128,13 @@ export default function AppShell({ page, onNavigate, badges = {}, user, permissi
           {nav}
         </Drawer>
       ) : (
-        <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)} ModalProps={{ keepMounted: true }}>{nav}</Drawer>
+        <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)} ModalProps={{ keepMounted: true }} sx={{ zIndex: (t) => t.zIndex.drawer + 2 }}
+          slotProps={{ paper: { sx: { width: FULL_W, maxWidth: '85vw' } } }}>{nav}</Drawer>
       )}
 
       <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', pt: `${APPBAR_H}px`, height: '100vh' }}>
         {children}
       </Box>
     </Box>
-  );
-}
-
-function Logo() {
-  return (
-    <Stack direction="row" alignItems="center" gap={1.25}>
-      <Box sx={{ width: 30, height: 30, borderRadius: 1.75, bgcolor: 'primary.main', color: '#fff', display: 'grid', placeItems: 'center' }}>
-        <DashboardOutlined sx={{ fontSize: 18 }} />
-      </Box>
-      <Typography fontWeight={700} fontSize={16} sx={{ display: { xs: 'none', sm: 'block' } }}>管理後台</Typography>
-    </Stack>
   );
 }

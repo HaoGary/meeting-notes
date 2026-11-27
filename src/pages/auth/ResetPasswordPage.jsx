@@ -42,7 +42,7 @@ export default function ResetPasswordPage({ api, go, token }) {
   if (state.network) {
     return (
       <AuthLayout>
-        <AuthHeader icon={<LinkOffOutlined />} title="無法確認連結" subtitle={netMessage(state.network)} />
+        <AuthHeader title="無法確認連結" subtitle={netMessage(state.network)} />
         <Button variant="contained" size="large" fullWidth sx={{ height: 46 }} onClick={check}>重新整理</Button>
       </AuthLayout>
     );
@@ -50,7 +50,7 @@ export default function ResetPasswordPage({ api, go, token }) {
   if (state.invalid) {
     return (
       <AuthLayout>
-        <AuthHeader icon={<LinkOffOutlined />} title="重設密碼連結已失效" subtitle={`${state.invalid.message}。請重新申請一次。`} />
+        <AuthHeader title="重設密碼連結已失效" subtitle={`${state.invalid.message}。請重新申請一次。`} />
         <Button variant="contained" size="large" fullWidth sx={{ height: 46 }} onClick={() => go({ page: 'forgot-password' })}>重新申請重設密碼</Button>
         <Typography textAlign="center" fontSize={14} sx={{ mt: 3 }}><TextLink onClick={() => go({ page: 'login' })}>返回登入</TextLink></Typography>
       </AuthLayout>
@@ -59,7 +59,7 @@ export default function ResetPasswordPage({ api, go, token }) {
   if (state.done) {
     return (
       <AuthLayout>
-        <AuthHeader icon={<CheckCircleOutline />} title="密碼已重設" subtitle="為了安全，所有裝置都已登出。請使用新密碼重新登入。" />
+        <AuthHeader title="密碼已重設" subtitle="為了安全，所有裝置都已登出。請使用新密碼重新登入。" />
         <Button variant="contained" size="large" fullWidth sx={{ height: 46 }} onClick={() => go({ page: 'login', prefill: state.username })}>返回登入</Button>
       </AuthLayout>
     );
@@ -67,13 +67,13 @@ export default function ResetPasswordPage({ api, go, token }) {
 
   return (
     <AuthLayout>
-      <AuthHeader icon={<LockResetOutlined />} title="設定新密碼" subtitle={<>為 <b>{state.maskedEmail}</b> 設定新密碼。</>} />
+      <AuthHeader title="設定新密碼" subtitle={<>為 <b>{state.maskedEmail}</b> 設定新密碼。</>} />
       {alert && <Alert severity="error" sx={{ mb: 2.5 }} onClose={() => setAlert(null)}>{alert}</Alert>}
       <FormStack onSubmit={submit}>
         <PasswordField id="reset-password" label="新密碼" placeholder="輸入新密碼" autoComplete="new-password" autoFocus {...form.field('password')}
           below={<PasswordChecklist value={form.values.password} />} />
         <PasswordField id="reset-confirm" label="確認新密碼" placeholder="再次輸入新密碼" autoComplete="new-password" {...form.field('confirm')} />
-        <SubmitButton loading={form.submitting}>重設密碼</SubmitButton>
+        <SubmitButton loading={form.submitting}>送出</SubmitButton>
       </FormStack>
     </AuthLayout>
   );

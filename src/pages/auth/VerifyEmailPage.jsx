@@ -21,7 +21,7 @@ function useCountdown() {
 export function VerifiedView({ go, username }) {
   return (
     <AuthLayout>
-      <AuthHeader icon={<CheckCircleOutline />} title="Email 驗證完成" subtitle="您的帳號已啟用，現在可以登入了。" />
+      <AuthHeader title="Email 驗證完成" subtitle="您的帳號已啟用，現在可以登入了。" />
       <Button variant="contained" size="large" fullWidth sx={{ height: 46 }} onClick={() => go({ page: 'login', prefill: username })}>前往登入</Button>
     </AuthLayout>
   );
@@ -66,7 +66,7 @@ export default function VerifyEmailPage({ api, go, email, resend }) {
   if (!email) {
     return (
       <AuthLayout>
-        <AuthHeader icon={<LinkOffOutlined />} title="找不到待驗證的 Email" subtitle="請重新登入，系統會引導您完成驗證。" />
+        <AuthHeader title="找不到待驗證的 Email" subtitle="請重新登入，系統會引導您完成驗證。" />
         <Button variant="contained" size="large" fullWidth sx={{ height: 46 }} onClick={() => go({ page: 'login' })}>返回登入</Button>
       </AuthLayout>
     );
@@ -75,7 +75,7 @@ export default function VerifyEmailPage({ api, go, email, resend }) {
 
   return (
     <AuthLayout>
-      <AuthHeader icon={<MarkEmailReadOutlined />} title="驗證您的 Email"
+      <AuthHeader title="驗證您的 Email"
         subtitle={<>我們已寄送 6 位數驗證碼至 <b>{mask(email)}</b>，請於 10 分鐘內輸入。也可以直接點擊信中的驗證連結。</>} />
       {alert && <Alert severity="error" sx={{ mb: 2.5 }} onClose={() => setAlert(null)}>{alert}</Alert>}
       <FormStack onSubmit={submit}>
@@ -106,7 +106,7 @@ export function ConfirmLinkPage({ api, go, token }) {
   if (state.ok) return <VerifiedView go={go} username={state.username} />;
   return (
     <AuthLayout>
-      <AuthHeader icon={<LinkOffOutlined />} title="驗證連結已失效" subtitle={`${netMessage(state.error)}。請登入後依指示重新寄送驗證信。`} />
+      <AuthHeader title="驗證連結已失效" subtitle={`${netMessage(state.error)}。請登入後依指示重新寄送驗證信。`} />
       <Button variant="contained" size="large" fullWidth sx={{ height: 46 }} onClick={() => go({ page: 'login' })}>前往登入</Button>
     </AuthLayout>
   );

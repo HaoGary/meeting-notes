@@ -23,7 +23,7 @@ export function PickerProvider({ children }) {
 const toDate = (s) => (s ? dayjs(s) : null);
 
 // inline：無外框，用於會議資料（滑過顯示底色）；outlined：一般表單
-function fieldProps({ variant, label, error, helperText, id, onOpen, width }) {
+function fieldProps({ variant, label, error, helperText, id, onOpen, width, iconSize = 20 }) {
   const inline = variant === 'inline';
   return {
     id, label: inline ? undefined : label, error, helperText,
@@ -39,7 +39,10 @@ function fieldProps({ variant, label, error, helperText, id, onOpen, width }) {
       '& .MuiInputBase-input': { cursor: 'pointer', py: 0 },
       '& .Mui-disabled': { WebkitTextFillColor: 'inherit !important', color: 'text.primary', cursor: 'default' },
       '& .Mui-error .MuiInputBase-input': { color: 'error.main' },
-      '& .MuiInputAdornment-root .MuiIconButton-root': { p: 0.5, mr: -0.5, color: 'text.disabled' },
+      // 圖示尺寸依設計稿：日期 20px、時間 18px，與文字間距約 10–12px
+      '& .MuiInputAdornment-root': { ml: 0.75 },
+      '& .MuiInputAdornment-root .MuiIconButton-root': { p: 0.25, mr: -0.25, color: 'text.disabled' },
+      '& .MuiInputAdornment-root .MuiSvgIcon-root': { fontSize: iconSize },
       '& .MuiFormHelperText-root': { mx: 1 },
     } : { '& .MuiInputBase-input': { cursor: 'pointer' } },
   };
@@ -53,7 +56,7 @@ export function DateInput({ value, onChange, disabled, variant = 'outlined', lab
       format="YYYY/MM/DD（dd）" showDaysOutsideCurrentMonth dayOfWeekFormatter={(d) => d.format('dd')} closeOnSelect
       slots={{ openPickerIcon: CalendarMonthOutlined }}
       slotProps={{
-        textField: fieldProps({ variant, label, error, helperText, id, width, onOpen: () => !disabled && setOpen(true) }),
+        textField: fieldProps({ variant, label, error, helperText, id, width, iconSize: 20, onOpen: () => !disabled && setOpen(true) }),
         actionBar: { actions: ['today'] },
         calendarHeader: { format: 'YYYY年M月' },
         popper: { placement: 'bottom-start' },
@@ -113,7 +116,7 @@ export function TimeInput({ value, onChange, disabled, variant = 'outlined', lab
     if (m >= 60) { m = 0; h = (h + 1) % 24; }
     commit(h, m);
   };
-  const tf = fieldProps({ variant, label, error, helperText, id, width });
+  const tf = fieldProps({ variant, label, error, helperText, id, width, iconSize: 18 });
   return (
     <>
       <TextField {...tf} value={value || ''} placeholder="--:--" disabled={disabled}

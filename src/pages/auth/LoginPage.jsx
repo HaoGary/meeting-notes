@@ -42,7 +42,7 @@ export default function LoginPage({ api, go, onLoggedIn, notice, prefill }) {
 
   return (
     <AuthLayout>
-      <AuthHeader title="歡迎回來" subtitle="登入以繼續使用管理後台" />
+      <AuthHeader title="歡迎回來" />
       {alert && (
         <Alert severity={alert.severity} sx={{ mb: 2.5 }} onClose={() => setAlert(null)}
           action={alert.action && <Button color="inherit" size="small" onClick={alert.action.onClick} sx={{ whiteSpace: 'nowrap' }}>{alert.action.label}</Button>}>

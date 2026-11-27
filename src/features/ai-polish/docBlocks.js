@@ -32,9 +32,13 @@ export function toSections(doc) {
 }
 
 // 傳給 AI 的內容（不含原始節點）
-export const sectionsPayload = (sections) => sections
-  .filter((s) => s.blocks.length)
+// all=true（分類模式）：空白的標題區塊也要傳，AI 才知道可以把內容放到哪裡
+export const sectionsPayload = (sections, { all = false } = {}) => sections
+  .filter((s) => s.blocks.length || (all && s.headingNode))
   .map((s) => ({ index: s.index, heading: s.heading, blocks: s.blocks }));
+
+// 分類模式可新增的標準區塊（文件裡沒有時才新增，放在最後）
+export const STANDARD_SECTIONS = ['會議目的', '討論事項', '決議事項', '待辦事項'];
 
 // 文字 → 段落內容：網址自動轉為連結
 const URL_RE = /(https?:\/\/[^\s，。、；）」]+)/g;
@@ -74,23 +78,51 @@ function blocksToNodes(blocks, keeps, used) {
 }
 
 // 依 AI 結果重建文件；AI 缺漏或格式不符的區塊保留原文，確保不會遺失內容
-export function fromSections(doc, parsed, result) {
+// classify=true（分類模式）：AI 可以把內容移到其他區塊、回傳空陣列清空區塊，也可新增標準區塊；
+// 表格與圖片一律留在原本的區塊，不跟著移動。
+export function fromSections(doc, parsed, result, { classify = false } = {}) {
   const { sections, keeps } = parsed;
   const byIndex = new Map((result?.sections || []).filter((s) => Number.isInteger(s?.index) && Array.isArray(s.blocks)).map((s) => [s.index, s.blocks]));
+  const home = {}; sections.forEach((s) => s.blocks.forEach((b) => { if (b.type === 'keep') home[b.ref] = s.index; }));
   const original = splitOriginal(doc);
   const used = new Set();
   const out = []; let kept = 0;
   sections.forEach((s, i) => {
     if (s.headingNode) out.push(s.headingNode);
-    const blocks = byIndex.get(s.index);
-    if (!s.blocks.length || !blocks) { out.push(...original[i]); if (s.blocks.length) kept++; return; }
+    let blocks = byIndex.get(s.index);
+    if (!blocks || (!classify && !s.blocks.length)) { out.push(...original[i]); if (s.blocks.length) kept++; return; }
+    if (classify) blocks = blocks.filter((b) => b?.type !== 'keep' || home[b.ref] === s.index);
     const nodes = blocksToNodes(blocks, keeps, used);
     // AI 遺漏的表格／圖片補回區塊最後
     s.blocks.filter((b) => b.type === 'keep' && !used.has(b.ref)).forEach((b) => { nodes.push(keeps[b.ref]); used.add(b.ref); });
-    out.push(...(nodes.length ? nodes : original[i]));
+    if (nodes.length) out.push(...nodes);
+    else if (!classify) out.push(...original[i]);
+    else if (s.headingNode) out.push({ type: 'paragraph' }); // 內容都分類到其他區塊後，留一個空段落方便輸入
   });
+  if (classify && Array.isArray(result?.newSections)) {
+    const existing = new Set(sections.map((s) => s.heading));
+    for (const ns of result.newSections) {
+      const heading = typeof ns?.heading === 'string' ? ns.heading.trim() : '';
+      if (!STANDARD_SECTIONS.includes(heading) || existing.has(heading) || !Array.isArray(ns.blocks)) continue;
+      const nodes = blocksToNodes(ns.blocks.filter((b) => b?.type !== 'keep'), keeps, used);
+      if (!nodes.length) continue;
+      existing.add(heading);
+      out.push({ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: heading }] }, ...nodes);
+    }
+  }
   return { doc: { ...doc, content: out.length ? out : [{ type: 'paragraph' }] }, keptSections: kept };
 }
+
+// 安全檢查：原文中的數字（日期、金額、百分比、時間等）在結果裡找不到時列出來，提醒使用者確認
+const allText = (n) => (n.type === 'text' ? n.text || '' : (n.content || []).map(allText).join(' '));
+export function missingNumbers(before, after) {
+  const nums = (doc) => (allText(doc).match(/\d+(?:[.:/,]\d+)*%?/g) || []);
+  const a = nums(after); const pool = new Map(); a.forEach((x) => pool.set(x, (pool.get(x) || 0) + 1));
+  const missing = [];
+  for (const x of new Set(nums(before))) if (!pool.has(x)) missing.push(x);
+  return missing;
+}
+
 function splitOriginal(doc) {
   const parts = [[]];
   for (const n of doc.content || []) { if (isSectionHeading(n)) parts.push([]); else parts[parts.length - 1].push(n); }

@@ -21,7 +21,7 @@ export default function TablePager({ count, page, size, onPage, onSize, sizes = 
         <Stack direction="row" alignItems="center" gap={1}>
           <Typography fontSize={13} color="text.secondary">每頁</Typography>
           <Select size="small" value={size} onChange={(e) => { onSize(+e.target.value); onPage(0); }} inputProps={{ 'aria-label': '每頁筆數' }}
-            sx={{ fontSize: 13, height: 32, bgcolor: '#fff', '.MuiSelect-select': { py: 0.5, pl: 1.25, pr: '28px !important' } }}>
+            sx={{ fontSize: 13, height: { xs: 36, sm: 32 }, minHeight: 0, bgcolor: '#fff', '.MuiSelect-select': { py: 0.5, pl: 1.25, pr: '28px !important' } }}>
             {sizes.map((s) => <MenuItem key={s} value={s} sx={{ fontSize: 13 }}>{s}</MenuItem>)}
           </Select>
           <Typography fontSize={13} color="text.secondary">{unit}</Typography>
@@ -30,7 +30,7 @@ export default function TablePager({ count, page, size, onPage, onSize, sizes = 
           <Pagination count={pages} page={page + 1} onChange={(_, p) => onPage(p - 1)} shape="rounded" size="small" color="primary"
             showFirstButton={pages > 5} showLastButton={pages > 5} siblingCount={1}
             getItemAriaLabel={(type, p) => ({ page: `第 ${p} 頁`, first: '第一頁', last: '最後一頁', next: '下一頁', previous: '上一頁' }[type])}
-            sx={{ '& .MuiPaginationItem-root': { fontSize: 13, minWidth: 30, height: 30, borderRadius: 1.5 }, '& .Mui-selected': { fontWeight: 600 } }} />
+            sx={{ '& .MuiPaginationItem-root': { fontSize: 13, minWidth: { xs: 36, sm: 30 }, height: { xs: 36, sm: 30 }, borderRadius: 1.5 }, '& .Mui-selected': { fontWeight: 600 } }} />
         )}
       </Stack>
     </Stack>

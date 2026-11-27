@@ -104,7 +104,9 @@ export default function Toolbar({ editor, onUploadImage, disabled, speech, onTid
   return (
     <Box role="toolbar" aria-label="文字格式"
       sx={{ position: 'relative', zIndex: 2, bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider', px: { xs: 1, md: 2 }, py: 0.5 }}>
-      <Stack direction="row" alignItems="center" flexWrap="wrap" rowGap={0.25}>
+      {/* 手機：工具列單列、可左右滑動；平板以上：自動換行 */}
+      <Stack direction="row" alignItems="center" flexWrap={{ xs: 'nowrap', sm: 'wrap' }} rowGap={0.25}
+        sx={{ overflowX: { xs: 'auto', sm: 'visible' }, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' }, '& > *': { flex: 'none' } }}>
         <Btn icon={Undo} title={`復原 (${mod} Z)`} disabled={!can || !editor.can().undo()} onClick={() => c().undo().run()} />
         <Btn icon={Redo} title={`重做 (${mod} Shift Z)`} disabled={!can || !editor.can().redo()} onClick={() => c().redo().run()} />
         <Sep />

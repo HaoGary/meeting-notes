@@ -22,7 +22,7 @@ export default function ForceChangePasswordPage({ api, user, onDone, onLogout })
   });
   return (
     <AuthLayout>
-      <AuthHeader icon={<LockResetOutlined />} title="請設定新密碼" subtitle={<>{user.name}，您目前使用的是管理員提供的臨時密碼，為了帳號安全，請先設定自己的密碼。</>} />
+      <AuthHeader title="請設定新密碼" subtitle={<>{user.name}，您目前使用的是管理員提供的臨時密碼，為了帳號安全，請先設定自己的密碼。</>} />
       {alert && <Alert severity="error" sx={{ mb: 2.5 }} onClose={() => setAlert(null)}>{alert}</Alert>}
       <FormStack onSubmit={submit}>
         <PasswordField id="force-password" label="新密碼" autoComplete="new-password" autoFocus {...form.field('password')} below={<PasswordChecklist value={form.values.password} />} />
