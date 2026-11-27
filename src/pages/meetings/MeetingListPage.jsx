@@ -19,7 +19,7 @@ import PageHeader from '../../components/common/PageHeader';
 import FilterBar from '../../components/common/FilterBar';
 import { useDevice } from '../../hooks/useDevice';
 import TablePager, { usePaged } from '../../components/common/TablePager';
-import { AppDialog, StatusChip, UserAvatar, fmtDate, fmtRel } from '../../components/common/ui';
+import { AppDialog, StatusChip, UserAvatar, fmtDate, fmtRel, hostOf } from '../../components/common/ui';
 
 const TABS = [['all', '全部'], ['draft', '草稿'], ['done', '已完成'], ['archived', '已封存']];
 const SORTS = [['date:desc', '日期：新到舊'], ['date:asc', '日期：舊到新'], ['updatedAt:desc', '最後修改：新到舊'], ['title:asc', '會議名稱：A → Z'], ['title:desc', '會議名稱：Z → A']];
@@ -39,7 +39,7 @@ function MeetingCards({ loading, rows, users, empty, hasAny, canCreate, onNew, o
   return (
     <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0, borderTop: 1, borderColor: 'divider' }}>
       {rows.map((m) => {
-        const h = users.find((u) => u.id === m.hostId);
+        const h = hostOf(m, users);
         return (
           <Box component="li" key={m.id} sx={{ borderBottom: 1, borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}>
             <Box role="button" tabIndex={0} onClick={() => onOpen(m.id)} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(m.id); }}
@@ -92,7 +92,7 @@ export default function MeetingListPage({ api, onOpenShare, meetings, loading, u
     const kw = q.trim().toLowerCase();
     const list = meetings.filter((m) =>
       (tab === 'all' ? m.status !== 'archived' : m.status === tab) &&
-      (!type || m.type === type) && (!host || m.hostId === host) &&
+      (!type || m.type === type) && (!host || (!m.hostName && m.hostId === host)) &&
       (!kw || m.title.toLowerCase().includes(kw) || (m.location || '').toLowerCase().includes(kw)));
     const val = (m) => (sort.key === 'date' ? m.date + m.start : sort.key === 'updatedAt' ? m.updatedAt : m.title);
     return list.sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * (sort.dir === 'asc' ? 1 : -1));
@@ -169,7 +169,7 @@ export default function MeetingListPage({ api, onOpenShare, meetings, loading, u
                   <TableRow key={i}>{Array.from({ length: 7 }).map((_, j) => <TableCell key={j}><Skeleton /></TableCell>)}</TableRow>
                 ))}
                 {!loading && paged.map((m) => {
-                  const h = users.find((u) => u.id === m.hostId);
+                  const h = hostOf(m, users);
                   return (
                     <TableRow key={m.id} hover onClick={() => onOpen(m.id)} sx={{ cursor: 'pointer', '&:last-child td': { borderBottom: 0 } }}>
                       <TableCell sx={{ maxWidth: 320 }}>

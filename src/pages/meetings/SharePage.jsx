@@ -13,7 +13,7 @@ import LockOutlined from '@mui/icons-material/LockOutlined';
 import ArrowBack from '@mui/icons-material/ArrowBack';
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined';
 import ReadOnlyContent from '../../features/editor/ReadOnlyContent';
-import { StatusChip, UserAvatar, fmtRel } from '../../components/common/ui';
+import { StatusChip, UserAvatar, fmtRel, guestUser } from '../../components/common/ui';
 
 const fullDate = (d) => {
   const dt = new Date(d + 'T00:00:00');
@@ -73,7 +73,8 @@ export default function SharePage({ api, token, onBackToApp, onLogin }) {
   }
   if (!data) return <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>{topBar}<Stack alignItems="center" py={14}><CircularProgress size={28} /></Stack></Box>;
 
-  const { meeting: m, host, attendees, guests = [] } = data;
+  const { meeting: m, attendees, guests = [] } = data;
+  const host = data.host?.external ? guestUser(data.host.name) : data.host;
   const urlOk = /^https?:\/\//.test(m.onlineUrl || '');
 
   return (
@@ -105,10 +106,10 @@ export default function SharePage({ api, token, onBackToApp, onLogin }) {
                         avatar={<Avatar sx={{ bgcolor: `${a.color} !important`, color: '#fff !important', fontSize: '9px !important', fontWeight: 600, width: '20px !important', height: '20px !important', ml: '3px !important', mr: '-2px !important' }}>{a.name.replace(/[A-Za-z]+ /, '').slice(0, 1)}</Avatar>}
                         sx={{ bgcolor: '#fff', borderColor: 'divider', height: 28 }} />
                     ))}
-                    {guests.map((g) => (
-                      <Chip key={`g-${g}`} size="small" variant="outlined" label={g}
-                        avatar={<Avatar sx={{ bgcolor: '#e4e4e7 !important', color: '#71717a !important', fontSize: '9px !important', fontWeight: 600, width: '20px !important', height: '20px !important', ml: '3px !important', mr: '-2px !important' }}>{g.replace(/[A-Za-z]+ /, '').slice(0, 1)}</Avatar>}
-                        sx={{ bgcolor: '#fff', borderColor: 'divider', borderStyle: 'dashed', height: 28 }} />
+                    {guests.map((g) => guestUser(g)).map((a) => (
+                      <Chip key={a.id} size="small" variant="outlined" label={a.name}
+                        avatar={<Avatar sx={{ bgcolor: `${a.color} !important`, color: '#fff !important', fontSize: '9px !important', fontWeight: 600, width: '20px !important', height: '20px !important', ml: '3px !important', mr: '-2px !important' }}>{a.name.replace(/[A-Za-z]+ /, '').slice(0, 1)}</Avatar>}
+                        sx={{ bgcolor: '#fff', borderColor: 'divider', height: 28 }} />
                     ))}
                   </Stack>
                 </Info>

@@ -17,7 +17,7 @@ const maskEmail = (e = '') => e.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '*
 
 const toMeeting = (r) => ({
   id: r.id, title: r.title, date: r.meeting_date, start: hhmm(r.start_time), end: hhmm(r.end_time),
-  location: r.location, onlineUrl: r.online_url, hostId: r.host_id, type: r.type, status: r.status, guests: r.guests || [],
+  location: r.location, onlineUrl: r.online_url, hostId: r.host_id, type: r.type, status: r.status, guests: r.guests || [], hostName: r.host_name || null,
   createdBy: r.created_by, createdAt: ms(r.created_at), updatedAt: ms(r.updated_at),
   ...('permission' in r ? {
     permission: r.permission, canArchive: !!r.can_archive, canShare: !!r.can_share,
@@ -25,7 +25,7 @@ const toMeeting = (r) => ({
   } : {}),
 });
 const MEETING_COLUMNS = { title: 'title', date: 'meeting_date', start: 'start_time', end: 'end_time',
-  location: 'location', onlineUrl: 'online_url', hostId: 'host_id', type: 'type', guests: 'guests' };
+  location: 'location', onlineUrl: 'online_url', hostId: 'host_id', type: 'type', guests: 'guests', hostName: 'host_name' };
 // 外部參與人員（無系統帳號）：去除空白與重複，名字最多 40 字、最多 50 位
 export const cleanGuests = (list = []) => {
   const out = [...new Set(list.map((g) => String(g).trim()).filter(Boolean))];
@@ -163,6 +163,11 @@ export function createApi(_getToken, { onUnauthorized, onSignedOut } = {}) {
         return toMeeting(await rpc('set_meeting_status', { p_meeting: id, p_status: patch.status }));
       }
       if ('guests' in patch) patch = { ...patch, guests: cleanGuests(patch.guests) };
+      if ('hostName' in patch) {
+        const n = (patch.hostName || '').trim() || null;
+        if (n && n.length > 40) throw new ApiError(422, '名字最多 40 個字', { code: 'VALIDATION' });
+        patch = { ...patch, hostName: n };
+      }
       const row = {};
       Object.entries(patch).forEach(([k, v]) => { if (MEETING_COLUMNS[k]) row[MEETING_COLUMNS[k]] = v; });
       const rows = await run(sb.from('meetings').update(row).eq('id', id).select());

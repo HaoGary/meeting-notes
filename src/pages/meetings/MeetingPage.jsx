@@ -147,14 +147,13 @@ const MeetingPage = forwardRef(function MeetingPage({ api, meetingId, users, cur
   const archived = meeting.status === 'archived';
   const canEdit = permission === 'editor' && !archived;
   const canStatus = permission === 'editor';
-  const host = users.find((u) => u.id === meeting.hostId);
 
   const patchMeeting = (patch, now = false) => {
     setData((d) => ({ ...d, meeting: { ...d.meeting, ...patch } }));
     meta.schedule(patch);
     if (now) meta.flush().then((ok) => ok && patch.status && toast(`已變更為「${MEETING_STATUS[patch.status]}」`));
   };
-  const onMetaChange = (patch) => patchMeeting(patch, 'status' in patch || 'guests' in patch);
+  const onMetaChange = (patch) => patchMeeting(patch, 'status' in patch || 'guests' in patch || 'hostName' in patch);
 
   const setAttendees = async (list) => {
     const prev = data.attendees;

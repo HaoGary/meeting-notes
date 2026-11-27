@@ -274,7 +274,12 @@ export function createApi(getToken, { onUnauthorized } = {}) {
         if (g.length > 50) throw new ApiError(422, '外部參與人員最多 50 位');
         patch = { ...patch, guests: g };
       }
-      const allowed = ['title', 'date', 'start', 'end', 'location', 'onlineUrl', 'hostId', 'type', 'status', 'guests'];
+      if ('hostName' in patch) {
+        const n = (patch.hostName || '').trim() || null;
+        if (n && n.length > 40) throw new ApiError(422, '名字最多 40 個字');
+        patch = { ...patch, hostName: n };
+      }
+      const allowed = ['title', 'date', 'start', 'end', 'location', 'onlineUrl', 'hostId', 'type', 'status', 'guests', 'hostName'];
       allowed.forEach((k) => { if (k in patch) m[k] = patch[k]; });
       m.updatedAt = Date.now();
       if ('status' in patch) log(id, u.id, `變更狀態為「${{ draft: '草稿', done: '已完成', archived: '已封存' }[patch.status]}」`);
@@ -417,7 +422,7 @@ export function createApi(getToken, { onUnauthorized } = {}) {
       persist();
       return clone({
         meeting: { title: m.title, date: m.date, start: m.start, end: m.end, location: m.location, onlineUrl: m.onlineUrl, type: m.type, status: m.status },
-        host: name(m.hostId),
+        host: m.hostName ? { id: null, name: m.hostName, external: true } : name(m.hostId),
         attendees: db.attendees.filter((a) => a.meetingId === m.id).map((a) => name(a.userId)).filter(Boolean),
         guests: m.guests || [],
         doc: db.content[m.id].doc,

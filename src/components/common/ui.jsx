@@ -52,6 +52,15 @@ export function AppDialog({ open, title, children, onClose, actions, maxWidth = 
 }
 
 // ── Avatar ──────────────────────────────
+// 外部人員（無系統帳號）：依名字固定配色，與系統成員同樣式顯示
+const GUEST_COLORS = ['#0d9488', '#9333ea', '#e11d48', '#2563eb', '#ca8a04', '#0891b2', '#ea580c', '#4f46e5'];
+export const guestUser = (name = '') => {
+  let h = 0; for (const c of name) h = (h * 31 + c.codePointAt(0)) >>> 0;
+  return { id: `guest:${name}`, name, color: GUEST_COLORS[h % GUEST_COLORS.length], external: true };
+};
+// 會議主持人：有外部主持人名字時優先顯示
+export const hostOf = (m, users = []) => (m?.hostName ? guestUser(m.hostName) : users.find((u) => u.id === m?.hostId));
+
 export function UserAvatar({ user, size = 24, sx }) {
   if (!user) return <Avatar sx={{ width: size, height: size, fontSize: size * 0.45, ...sx }}>?</Avatar>;
   return (
