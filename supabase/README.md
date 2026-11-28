@@ -32,6 +32,7 @@
 | 20261127120000_external_members | 外部成員統一名單（external_members），匯入既有會議用過的名字 | SQL Editor 手動 |
 | 20261127130000_external_members_edit | 外部成員改名（同步更新所有會議）、從名單移除 | SQL Editor 手動 |
 | 20261128090000_ai_vectorize | AI 圖片向量化：權限 tools.vectorize_ai、每日上限 app_settings、使用紀錄 ai_vectorize_usage | SQL Editor 手動 |
+| 20261128120000_perf_list_meetings_rls | 效能：list_meetings 整批計算權限；profiles、audit_logs 的 RLS 函式每次查詢只算一次 | SQL Editor 手動 |
 
 標示「SQL Editor 手動」的兩筆含 delete 語句，是在後台手動執行的，遠端沒有它們的版本紀錄。第一次用 CLI 連結專案時，請先補記錄，避免 `db push` 重複套用：
 
