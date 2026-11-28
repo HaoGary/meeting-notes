@@ -235,7 +235,7 @@ export default function VectorizePage({ api, canUseAi = false }) {
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: { xs: 'auto', md: 'hidden' } }} {...dropHandlers}>
       <PageHeader crumbs={[{ label: '文件工具' }, { label: '圖片向量化' }]} title="圖片向量化"
-        subtitle={`把 PNG、JPG、WEBP 轉成可編輯的 SVG 向量圖，可在 Illustrator、Figma 開啟。${canUseAi ? "本機引擎在瀏覽器內處理；AI 引擎會把圖片上傳到 Recraft。" : "所有處理都在瀏覽器內完成。"}`}
+        subtitle="把 PNG、JPG、WEBP 轉成可在 Illustrator、Figma 編輯的 SVG。"
         actions={image && (
           <>
             <Button variant="outlined" color="inherit" startIcon={<ImageOutlined />} onClick={() => fileInput.current?.click()}

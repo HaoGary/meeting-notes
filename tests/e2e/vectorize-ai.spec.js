@@ -12,7 +12,7 @@ test('AI 向量化：有權限者可使用、扣額度、同一張圖不重複�
   await expect(page.getByTestId('vectorize-stats')).toBeVisible({ timeout: 30_000 });
 
   await engine(page, 'AI（Recraft）').click();
-  await expect(page.getByText('圖片會上傳到 Recraft 處理')).toBeVisible();
+  await expect(page.getByText('圖片會上傳至 Recraft')).toBeVisible();
   await expect(page.getByTestId('ai-remaining')).toHaveText('20');
   await page.getByRole('button', { name: 'AI 轉換（使用 1 次）' }).click();
   const stats = page.getByTestId('vectorize-stats');
@@ -48,7 +48,7 @@ test('AI 向量化：管理員可調整每日上限，用完後無法再轉換',
   await expect(page.getByTestId('ai-remaining')).toHaveText('0', { timeout: 15_000 });
   await page.getByTestId('vectorize-file').setInputFiles(fixture('photo.jpg'));
   await expect(page.getByRole('button', { name: 'AI 轉換（使用 1 次）' })).toBeDisabled();
-  await expect(page.getByText('今天的次數已用完')).toBeVisible();
+  await expect(page.getByText('今日次數已用完')).toBeVisible();
 });
 
 test('AI 向量化：沒有權限的角色看不到 AI 引擎', async ({ page }) => {

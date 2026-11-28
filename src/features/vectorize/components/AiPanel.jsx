@@ -27,10 +27,10 @@ export default function AiPanel({ quota, busy, done, onRun, onSetLimit, image, a
           <Typography fontSize={14} fontWeight={600}>Recraft AI 向量化</Typography>
         </Stack>
         <Typography fontSize={12.5} color="text.secondary" lineHeight={1.7}>
-          由 Recraft 的 AI 描圖，線條與曲線通常比本機引擎乾淨，適合標誌、圖示與插畫。AI 模式沒有參數可調。
+          線條較乾淨，適合標誌、插畫。無參數可調。
         </Typography>
         <Alert severity="info" icon={<CloudUploadOutlined fontSize="small" />} sx={{ mt: 1.25, py: 0.25, fontSize: 12.5, '& .MuiAlert-message': { py: 0.75 } }}>
-          圖片會上傳到 Recraft 處理，並開啟零資料保留（Recraft 不保存圖片與結果）。
+          圖片會上傳至 Recraft（不保存）
         </Alert>
       </Box>
       <Divider />
@@ -44,7 +44,7 @@ export default function AiPanel({ quota, busy, done, onRun, onSetLimit, image, a
           <Typography fontSize={13} color="text.disabled">/ {quota?.limit ?? '—'} 次</Typography>
         </Stack>
         <LinearProgress variant="determinate" value={pct} color={remaining ? 'primary' : 'error'} sx={{ mt: 1, height: 6, borderRadius: 3, bgcolor: 'action.hover' }} />
-        <Typography fontSize={12} color="text.disabled" mt={0.75}>每人每日上限，台北時間午夜重置；轉換失敗不計次。同一張圖轉換後不會重複計費。</Typography>
+        <Typography fontSize={12} color="text.disabled" mt={0.75}>午夜重置；失敗不計次，同一張圖不重複計費。</Typography>
 
         {quota?.canConfigure && (
           editing ? (
@@ -60,7 +60,7 @@ export default function AiPanel({ quota, busy, done, onRun, onSetLimit, image, a
                 <Button size="small" color="inherit" onClick={() => { setEditing(false); setErr(''); }} sx={{ color: 'text.secondary', minWidth: 0 }}>取消</Button>
               </Stack>
               {err && <Typography fontSize={12} color="error" mt={0.5}>{err}</Typography>}
-              <Typography fontSize={12} color="text.disabled" mt={0.5}>標準版每次 US$0.01。設為 0 可暫停所有人使用。</Typography>
+              <Typography fontSize={12} color="text.disabled" mt={0.5}>每次 US$0.01；設為 0 即暫停使用。</Typography>
             </Box>
           ) : (
             <Button size="small" sx={{ mt: 1, px: 0, minWidth: 0 }} onClick={() => { setLimit(String(quota.limit)); setEditing(true); }}>調整每日上限</Button>
@@ -75,10 +75,10 @@ export default function AiPanel({ quota, busy, done, onRun, onSetLimit, image, a
         </Button>
         {aiSize && (
           <Typography fontSize={12} color="text.disabled" mt={0.75}>
-            {aiSize.scaled ? `會以 ${aiSize.width}×${aiSize.height} 送出（Recraft 限制每邊 256–4096 px），輸出仍維持原圖尺寸。` : `以原圖尺寸 ${aiSize.width}×${aiSize.height} 送出。`}
+            {`以 ${aiSize.width}×${aiSize.height} 送出${aiSize.scaled ? '，輸出維持原圖尺寸' : ''}`}
           </Typography>
         )}
-        {quota && remaining <= 0 && !done && <Typography fontSize={12.5} color="error" mt={0.75}>今天的次數已用完，可切換回「本機」引擎繼續轉換。</Typography>}
+        {quota && remaining <= 0 && !done && <Typography fontSize={12.5} color="error" mt={0.75}>今日次數已用完，可改用本機引擎。</Typography>}
       </Box>
     </Box>
   );

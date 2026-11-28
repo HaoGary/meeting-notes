@@ -30,7 +30,8 @@ const TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const MAX_BYTES = 20 * 1024 * 1024;
 
 class ApiError extends Error {
-  constructor(public status: number, message: string, public code = 'ERROR') { super(message); }
+  // detail：只寫進使用紀錄（管理員對帳、除錯用），不回傳給使用者
+  constructor(public status: number, message: string, public code = 'ERROR', public detail = '') { super(message); }
 }
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
@@ -42,6 +43,11 @@ function fromDb(err: { code?: string; message?: string; hint?: string }) {
 }
 
 function recraftError(status: number, text: string) {
+  const e = recraftErrorBase(status, text);
+  e.detail = `Recraft HTTP ${status}: ${text.slice(0, 300)}`;
+  return e;
+}
+function recraftErrorBase(status: number, text: string) {
   if (status === 401 || status === 403) return new ApiError(502, 'Recraft API 金鑰無效，請聯絡系統管理員', 'RECRAFT_AUTH');
   if (status === 402 || /balance|credit|insufficient/i.test(text)) return new ApiError(502, 'Recraft 帳戶餘額不足，請聯絡系統管理員', 'RECRAFT_BALANCE');
   if (status === 429) return new ApiError(503, 'Recraft 服務忙碌中，請稍後再試', 'RECRAFT_BUSY');
@@ -103,7 +109,7 @@ Deno.serve(async (req) => {
   } catch (e) {
     const err = e instanceof ApiError ? e : new ApiError(500, '伺服器錯誤，請稍後再試', 'INTERNAL');
     if (!(e instanceof ApiError)) console.error(e);
-    if (usageId) await admin.rpc('ai_vectorize_finish', { p_id: usageId, p_status: 'failed', p_credits: null, p_error: `${err.code}: ${err.message}` });
+    if (usageId) await admin.rpc('ai_vectorize_finish', { p_id: usageId, p_status: 'failed', p_credits: null, p_error: `${err.code}: ${err.message}${err.detail ? ` | ${err.detail}` : ''}` });
     return json(err.status, { error: { message: err.message, code: err.code } });
   }
 });
