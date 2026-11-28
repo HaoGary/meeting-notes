@@ -10,6 +10,7 @@ export const PERMISSIONS = [
   { key: 'meeting.delete_all', group: '會議', label: '刪除所有會議', desc: '包含他人建立的會議' },
   { key: 'system.accounts', group: '系統', label: '帳號管理', desc: '新增、編輯、停用帳號，重設他人密碼' },
   { key: 'system.permissions', group: '系統', label: '權限管理', desc: '設定角色權限與指派使用者角色' },
+  { key: 'tools.vectorize_ai', group: '文件工具', label: 'AI 圖片向量化', desc: '使用 Recraft AI 轉換圖片（圖片會上傳到 Recraft，按次計費，有每日上限）' },
 ];
 const ALL = PERMISSIONS.map((p) => p.key);
 

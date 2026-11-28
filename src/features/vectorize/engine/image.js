@@ -30,6 +30,7 @@ export async function loadImageFile(file) {
     name: file.name.replace(/\.[^.]+$/, '') || 'image',
     type: file.type, size: file.size, width, height,
     url: URL.createObjectURL(file),
+    file,
     source,
     pixels: new Map(),
   };

@@ -110,8 +110,17 @@ function sendMail(to, subject, body, extra = {}) {
 const maskEmail = (e) => e.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '*'.repeat(Math.max(2, b.length)) + c);
 const findByEmail = (email) => db.users.find((u) => u.email.toLowerCase() === String(email).trim().toLowerCase());
 const findByIdentifier = (id) => { const v = String(id).trim().toLowerCase(); return db.users.find((u) => u.username.toLowerCase() === v || u.email.toLowerCase() === v); };
+// AI 向量化額度（台北時間當日）
+function aiQuota(u) {
+  const limit = db.settings?.aiVectorizeLimit ?? 20;
+  const day = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
+  const used = (db.aiUsage || []).filter((x) => x.userId === u.id && new Date(x.at + 8 * 3600e3).toISOString().slice(0, 10) === day).length;
+  return { allowed: permsOf(u).has('tools.vectorize_ai'), limit, used, remaining: Math.max(0, limit - used), canConfigure: permsOf(u).has('system.permissions') };
+}
 function permsOf(user) {
-  return new Set(db.roles.find((r) => r.id === user.roleId)?.permissions || []);
+  const role = db.roles.find((r) => r.id === user.roleId);
+  if (role?.locked) return new Set(PERMISSIONS.map((p) => p.key)); // 系統管理員擁有所有權限（含之後新增的）
+  return new Set(role?.permissions || []);
 }
 function requirePerm(user, key) {
   if (!permsOf(user).has(key)) throw new ApiError(403, `沒有「${permLabel(key)}」權限`);
@@ -478,6 +487,37 @@ export function createApi(getToken, { onUnauthorized } = {}) {
     },
 
     // ── 個人帳號設定（登入者本人） ─────────────────
+    // ── AI 圖片向量化（預覽模式：模擬額度與結果，不會呼叫 Recraft） ──
+    vectorizeAi: {
+      async quota() {
+        await delay(80);
+        const u = await me();
+        return aiQuota(u);
+      },
+      async setLimit(limit) {
+        await delay(120);
+        const u = await me();
+        requirePerm(u, 'system.permissions');
+        if (!Number.isInteger(limit) || limit < 0 || limit > 1000) throw new ApiError(422, '每日上限需為 0–1000');
+        db.settings = { ...(db.settings || {}), aiVectorizeLimit: limit };
+        persist();
+        return aiQuota(u);
+      },
+      async run(blob, { width, height }) {
+        await delay(900);
+        const u = await me();
+        if (!permsOf(u).has('tools.vectorize_ai')) throw new ApiError(403, '你沒有使用 AI 向量化的權限，請聯絡系統管理員');
+        if (!(width >= 256 && height >= 256 && width <= 4096 && height <= 4096 && width * height <= 16_000_000)) throw new ApiError(422, '圖片尺寸需在 256–4096 px 之間，且不超過 1,600 萬像素');
+        const q = aiQuota(u);
+        if (q.remaining <= 0) throw new ApiError(429, `今天的 AI 向量化次數已用完（每人每日 ${q.limit} 次），請明天再試，或改用本機引擎`, { code: 'QUOTA_EXCEEDED' });
+        db.aiUsage = [...(db.aiUsage || []), { userId: u.id, at: Date.now() }];
+        persist();
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
+          + `<rect width="${width}" height="${height}" fill="#eef2ff"/><path d="M${width * 0.2} ${height * 0.75}L${width * 0.5} ${height * 0.25}L${width * 0.8} ${height * 0.75}Z" fill="#4f46e5"/></svg>`;
+        return { svg, credits: 10, quota: aiQuota(u), simulated: true };
+      },
+    },
+
     account: {
       async updateProfile(data) {
         await delay(400);

@@ -31,6 +31,7 @@
 | 20261127110000_meeting_host_name | 外部主持人欄位 host_name；修改紀錄涵蓋外部人員；分享頁顯示 | MCP |
 | 20261127120000_external_members | 外部成員統一名單（external_members），匯入既有會議用過的名字 | SQL Editor 手動 |
 | 20261127130000_external_members_edit | 外部成員改名（同步更新所有會議）、從名單移除 | SQL Editor 手動 |
+| 20261128090000_ai_vectorize | AI 圖片向量化：權限 tools.vectorize_ai、每日上限 app_settings、使用紀錄 ai_vectorize_usage | SQL Editor 手動 |
 
 標示「SQL Editor 手動」的兩筆含 delete 語句，是在後台手動執行的，遠端沒有它們的版本紀錄。第一次用 CLI 連結專案時，請先補記錄，避免 `db push` 重複套用：
 
@@ -58,3 +59,13 @@ npx supabase functions deploy accounts --no-verify-jwt
 - Authentication → Emails：套用 `templates/` 的中文範本
 - Authentication → URL Configuration：Site URL 與 Redirect URLs 需填入前台網址（例如 GitHub Pages 網址），邀請信與重設密碼信才會導回網站
 - Edge Functions → Secrets：可選 `APP_URL`（信件連結導回的網址；未設定時用 Site URL）
+
+## Edge Function：vectorize-ai（AI 圖片向量化）
+
+- 代為呼叫 Recraft Vectorize API（標準版，US$0.01／次），開啟零資料保留，結果以 b64_json 直接回傳。
+- 需要在 **Project Settings → Edge Functions → Secrets** 新增 `RECRAFT_API_TOKEN`（Recraft 的 API 金鑰）。沒有設定時會回覆「AI 向量化尚未設定」，不會扣次數。
+- 部署時 `verify_jwt = false`（函式內自行以 `auth.getUser` 驗證登入）。
+- 權限：`tools.vectorize_ai`（預設只有系統管理員，其他角色到「權限管理」勾選）。
+- 每日上限：`app_settings.ai_vectorize_daily_limit`（預設 20），有「權限管理」權限者可在工具頁調整，也可用 SQL：
+  `select public.set_ai_vectorize_limit(30);`（需以管理員登入）或直接 `update public.app_settings set value = '30' where key = 'ai_vectorize_daily_limit';`
+- 使用紀錄：`select * from public.ai_vectorize_usage order by created_at desc;`（失敗的紀錄不計入額度）

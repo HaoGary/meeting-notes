@@ -70,6 +70,8 @@ export default defineConfig(({ mode }) => {
             // 把大型第三方套件拆成獨立檔案，改版時使用者只需重新下載有變動的部分
             manualChunks(id) {
               if (!id.includes('node_modules')) return undefined;
+              // 圖片向量化專用套件跟著延後載入的頁面，不放進每頁都會載入的 vendor
+              if (/[\\/](svgo|@visioncortex)[\\/]/.test(id)) return undefined;
               if (/[\\/](@tiptap|prosemirror-[^\\/]+|linkifyjs|orderedmap|rope-sequence|w3c-keyname)[\\/]/.test(id)) return 'vendor-editor';
               if (/[\\/](@mui|@emotion|@popperjs|dayjs)[\\/]/.test(id)) return 'vendor-mui';
               return 'vendor';

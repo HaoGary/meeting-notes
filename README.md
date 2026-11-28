@@ -149,6 +149,12 @@ npm run test:e2e           # 以模擬後端建置並執行冒煙測試（不會
 - 拖曳或貼上圖片、左右分割比較（同步縮放與拖曳、滾輪或雙指縮放、雙擊符合視窗）、填色／外框檢視
 - 進度與各階段處理時間、可取消、下載 SVG 或複製程式碼
 
+**AI 引擎（Recraft，選用）**
+- 有「AI 圖片向量化」權限（`tools.vectorize_ai`）的人，參數面板上方會出現「轉換引擎：本機（免費）／AI（Recraft）」。
+- 圖片會上傳到 Recraft（零資料保留），每次使用 1 次額度；每人每日上限預設 20 次，失敗不計次，同一張圖轉換後不重複計費。
+- 呼叫流程：前端 → Supabase Edge Function `vectorize-ai`（驗證登入、預扣額度、以 Secrets 裡的 `RECRAFT_API_TOKEN` 呼叫 Recraft）→ 回傳 SVG → 前端以 SVGO 最佳化。金鑰不會出現在前端。
+- 預覽（mock）模式不會呼叫 Recraft，只模擬額度與一張示意結果。
+
 **架構**（`src/features/vectorize/`，引擎與 UI 分離）
 
 | 檔案 | 用途 |
@@ -159,6 +165,7 @@ npm run test:e2e           # 以模擬後端建置並執行冒煙測試（不會
 | `engine/vectorize.worker.js` | Web Worker：前處理 → VTracer（WebAssembly）→ SVGO |
 | `engine/svg.js` | 補 viewBox、還原原圖尺寸、SVGO 最佳化路徑、統計 |
 | `engine/VectorizerClient.js` | Worker 管理、進度、取消、結果快取（相同圖片與參數不重算） |
+| `engine/aiClient.js` | AI 引擎：依 Recraft 限制縮放圖片、呼叫後端、整理結果 |
 | `components/` | 參數面板、比較預覽 |
 | `pages/tools/VectorizePage.jsx` | 頁面（延後載入，不影響其他頁面的載入速度） |
 

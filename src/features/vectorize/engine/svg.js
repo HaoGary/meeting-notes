@@ -17,9 +17,12 @@ const SVGO_CONFIG = {
  */
 export function finalizeSvg(raw, o) {
   // 以處理尺寸作為座標系，輸出尺寸還原為原圖大小（等比例，不變形）
-  let svg = raw.replace(/<svg\b[^>]*>/, () =>
-    `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="${o.origW}" height="${o.origH}" viewBox="0 0 ${o.procW} ${o.procH}">`
-    + (o.background ? `<rect width="${o.procW}" height="${o.procH}" fill="${o.background}"/>` : ''));
+  let svg = raw.replace(/<svg\b[^>]*>/, (tag) => {
+    // 外部引擎（Recraft）已有 viewBox 時沿用，只把輸出尺寸改為原圖大小
+    const vb = o.keepViewBox && /\sviewBox="([^"]+)"/.exec(tag)?.[1];
+    return `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="${o.origW}" height="${o.origH}" viewBox="${vb || `0 0 ${o.procW} ${o.procH}`}">`
+      + (o.background ? `<rect width="${o.procW}" height="${o.procH}" fill="${o.background}"/>` : '');
+  });
   const rawBytes = byteLength(svg);
   if (o.optimize !== false) {
     const r = optimize(svg, SVGO_CONFIG);

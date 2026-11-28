@@ -275,7 +275,7 @@ export default function App() {
         ? <AccountsPage key={currentUser.id + reloadKey} api={api} currentUser={currentUser} canSetRole={can('system.permissions')} />
         : noAccess('帳號管理'))}
       {route.page === 'vectorize' && (
-        <Suspense fallback={<Box sx={{ p: 3 }}><CircularProgress size={24} /></Box>}><VectorizePage /></Suspense>
+        <Suspense fallback={<Box sx={{ p: 3 }}><CircularProgress size={24} /></Box>}><VectorizePage api={api} canUseAi={can('tools.vectorize_ai')} /></Suspense>
       )}
       {route.page === 'account' && <AccountSettingsPage key={currentUser.id} api={api} user={currentUser} onUpdated={() => { loadMe(); }} />}
 

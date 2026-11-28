@@ -253,6 +253,26 @@ export function createApi(_getToken, { onUnauthorized, onSignedOut } = {}) {
     },
 
     // ── 個人帳號設定 ──
+    // ── AI 圖片向量化（Recraft，經 Edge Function vectorize-ai） ──
+    vectorizeAi: {
+      async quota() { return rpc('ai_vectorize_quota'); },
+      async setLimit(limit) { return rpc('set_ai_vectorize_limit', { p_limit: limit }); },
+      async run(blob, { width, height, name = 'image' }) {
+        const body = new FormData();
+        body.append('file', blob, name);
+        body.append('width', String(width));
+        body.append('height', String(height));
+        const { data, error } = await sb.functions.invoke('vectorize-ai', { body });
+        if (!error) return data;
+        let res = null;
+        try { res = await error.context?.json(); } catch { /* 非 JSON 回應 */ }
+        const status = error.context?.status || 0;
+        const er = res?.error || {};
+        if (status === 401) throw unauthorized(er.message, er.code);
+        throw new ApiError(status, er.message || (status ? 'AI 向量化失敗，請稍後再試' : '網路連線失敗，請稍後再試'), { code: er.code });
+      },
+    },
+
     account: {
       async updateProfile(data) {
         const errs = validateAll(profileSchema, data);

@@ -13,6 +13,8 @@ import PageHeader from '../../components/common/PageHeader';
 import { useToast } from '../../components/common/ui';
 import CompareViewer from '../../features/vectorize/components/CompareViewer';
 import ParamsPanel from '../../features/vectorize/components/ParamsPanel';
+import AiPanel from '../../features/vectorize/components/AiPanel';
+import { aiTargetSize, runAiVectorize } from '../../features/vectorize/engine/aiClient';
 import { DEFAULT_PARAMS, MAX_SIZES, MODES } from '../../features/vectorize/engine/params';
 import { ACCEPT, MAX_FILE_MB, loadImageFile, releaseImage } from '../../features/vectorize/engine/image';
 import { STAGES, VectorizerClient } from '../../features/vectorize/engine/VectorizerClient';
@@ -65,7 +67,7 @@ function DropZone({ onPick, dragging }) {
   );
 }
 
-export default function VectorizePage() {
+export default function VectorizePage({ api, canUseAi = false }) {
   const toast = useToast();
   const clientRef = useRef(null);
   if (!clientRef.current) clientRef.current = new VectorizerClient();
@@ -82,22 +84,58 @@ export default function VectorizePage() {
   const [layout, setLayout] = useState('split');
   const [stale, setStale] = useState(false);
   const fileInput = useRef(null);
+  // AI 引擎（Recraft）：結果依圖片快取，同一張圖不重複計費
+  const [engine, setEngine] = useState('local');
+  const [quota, setQuota] = useState(null);
+  const [aiResult, setAiResult] = useState(null);
+  const [aiJob, setAiJob] = useState(null);
+  const [aiError, setAiError] = useState(null);
+  const aiCache = useRef(new Map());
   const imageRef = useRef(null);
   imageRef.current = image;
   const paramsRef = useRef(params);
   paramsRef.current = params;
 
   useEffect(() => () => client.dispose(), [client]);
+  const refreshQuota = useCallback(() => {
+    if (!canUseAi || !api?.vectorizeAi) return;
+    api.vectorizeAi.quota().then(setQuota).catch(() => setQuota(null));
+  }, [api, canUseAi]);
+  useEffect(() => { refreshQuota(); }, [refreshQuota]);
+  useEffect(() => { if (!canUseAi) setEngine('local'); }, [canUseAi]);
   // 換圖或離開頁面時才釋放舊圖片（先換上新圖再釋放，預覽不會閃出破圖）
   useEffect(() => () => releaseImage(image), [image]);
   useEffect(() => { try { localStorage.setItem(PARAMS_KEY, JSON.stringify(params)); } catch {} }, [params]);
 
   // 處理中顯示經過時間
   useEffect(() => {
-    if (!job) return undefined;
-    const t = setInterval(() => setElapsed(performance.now() - job.started), 100);
+    const j = job || aiJob;
+    if (!j) return undefined;
+    const t = setInterval(() => setElapsed(performance.now() - j.started), 100);
     return () => clearInterval(t);
-  }, [job]);
+  }, [job, aiJob]);
+
+  const runAi = async () => {
+    const img = imageRef.current;
+    if (!img || aiJob) return;
+    const hit = aiCache.current.get(img.key);
+    if (hit) { setAiResult(hit); return; }
+    setAiError(null);
+    setElapsed(0);
+    setAiJob({ started: performance.now() });
+    try {
+      const r = await runAiVectorize(api, img);
+      aiCache.current.set(img.key, r);
+      if (r.quota) setQuota((q) => ({ ...(q || {}), ...r.quota }));
+      if (img === imageRef.current) setAiResult(r);
+    } catch (e) {
+      if (img === imageRef.current) setAiError(e.message || 'AI 向量化失敗');
+      refreshQuota();
+    } finally {
+      setAiJob(null);
+    }
+  };
+  const setAiLimit = async (n) => { setQuota(await api.vectorizeAi.setLimit(n)); };
 
   const run = useCallback(async (img, p) => {
     if (!img) return;
@@ -135,6 +173,8 @@ export default function VectorizePage() {
       setResult(null);
       setError(null);
       setStale(false);
+      setAiResult(aiCache.current.get(img.key) || null);
+      setAiError(null);
       run(img, paramsRef.current);
     } catch (e) {
       // 已有圖片時保留目前的結果，只提示這個檔案無法使用
@@ -174,28 +214,33 @@ export default function VectorizePage() {
   };
 
   const download = () => {
-    if (!result) return;
-    const url = URL.createObjectURL(new Blob([result.svg], { type: 'image/svg+xml' }));
-    const a = Object.assign(document.createElement('a'), { href: url, download: `${image.name}.svg` });
+    if (!shown) return;
+    const url = URL.createObjectURL(new Blob([shown.svg], { type: 'image/svg+xml' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: `${image.name}${isAi ? '-ai' : ''}.svg` });
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   const copy = async () => {
-    try { await navigator.clipboard.writeText(result.svg); toast('已複製 SVG 程式碼'); } catch { toast('無法存取剪貼簿', 'error'); }
+    try { await navigator.clipboard.writeText(shown.svg); toast('已複製 SVG 程式碼'); } catch { toast('無法存取剪貼簿', 'error'); }
   };
 
-  const busy = !!job;
-  const s = result?.stats;
+  const isAi = engine === 'ai';
+  const shown = isAi ? aiResult : result;
+  const shownError = isAi ? aiError : error;
+  const busy = isAi ? !!aiJob : !!job;
+  const s = shown?.stats;
+  let aiSize = null;
+  try { aiSize = image && isAi ? aiTargetSize(image.width, image.height) : null; } catch { aiSize = null; }
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: { xs: 'auto', md: 'hidden' } }} {...dropHandlers}>
       <PageHeader crumbs={[{ label: '文件工具' }, { label: '圖片向量化' }]} title="圖片向量化"
-        subtitle="把 PNG、JPG、WEBP 轉成可編輯的 SVG 向量圖，可在 Illustrator、Figma 開啟。所有處理都在瀏覽器內完成。"
+        subtitle={`把 PNG、JPG、WEBP 轉成可編輯的 SVG 向量圖，可在 Illustrator、Figma 開啟。${canUseAi ? "本機引擎在瀏覽器內處理；AI 引擎會把圖片上傳到 Recraft。" : "所有處理都在瀏覽器內完成。"}`}
         actions={image && (
           <>
             <Button variant="outlined" color="inherit" startIcon={<ImageOutlined />} onClick={() => fileInput.current?.click()}
               sx={{ borderColor: 'divider', display: { xs: 'none', sm: 'inline-flex' } }}>更換圖片</Button>
-            <Button variant="contained" startIcon={<FileDownloadOutlined />} disabled={!result || busy} onClick={download}>下載 SVG</Button>
+            <Button variant="contained" startIcon={<FileDownloadOutlined />} disabled={!shown || busy} onClick={download}>下載 SVG</Button>
           </>
         )} />
       <input ref={fileInput} type="file" hidden accept={ACCEPT.join(',')} data-testid="vectorize-file" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) openFile(f); }} />
@@ -227,42 +272,52 @@ export default function VectorizePage() {
                 <ToggleButton value="svg">SVG</ToggleButton>
               </ToggleButtonGroup>
             </Stack>
-            {busy && <LinearProgress variant="determinate" value={job.pct} sx={{ height: 3 }} aria-label="轉換進度" />}
+            {busy && (isAi ? <LinearProgress sx={{ height: 3 }} aria-label="轉換進度" /> : <LinearProgress variant="determinate" value={job.pct} sx={{ height: 3 }} aria-label="轉換進度" />)}
 
-            <CompareViewer originalUrl={image.url} svg={result?.svg} width={image.width} height={image.height} busy={busy} layout={layout}
-              emptySvg={(busy || !error) && (
-                <Stack alignItems="center" justifyContent="center" sx={{ position: 'absolute', inset: 0, color: 'text.disabled', gap: 1, pointerEvents: 'none' }}>
+            <CompareViewer originalUrl={image.url} svg={shown?.svg} width={image.width} height={image.height} busy={busy} layout={layout}
+              emptySvg={(busy || !shownError) && (
+                <Stack alignItems="center" justifyContent="center" sx={{ position: 'absolute', inset: 0, color: 'text.disabled', gap: 1, pointerEvents: 'none', px: 2, textAlign: 'center' }}>
                   {busy ? <><CircularProgress size={28} /><Typography fontSize={13}>產生中…</Typography></>
-                    : <Typography fontSize={13}>已取消轉換，按「重新產生」再試一次</Typography>}
+                    : isAi ? <Typography fontSize={13}>按左側「AI 轉換」開始（每次使用 1 次額度）</Typography>
+                      : <Typography fontSize={13}>已取消轉換，按「重新產生」再試一次</Typography>}
                 </Stack>
               )} />
 
             {/* 進度 / 結果資訊 */}
             <Box sx={{ px: 2, py: 1, borderTop: 1, borderColor: 'divider', bgcolor: 'background.paper', minHeight: 48, display: 'flex', alignItems: 'center' }}>
-              {busy ? (
+              {busy && isAi ? (
+                <Stack direction="row" alignItems="center" gap={1.5} sx={{ width: '100%' }} role="status" aria-live="polite">
+                  <CircularProgress size={16} />
+                  <Typography fontSize={13}>上傳並由 Recraft AI 轉換中…</Typography>
+                  <Typography fontSize={13} color="text.disabled" sx={{ fontVariantNumeric: 'tabular-nums' }}>{fmtMs(elapsed)}</Typography>
+                </Stack>
+              ) : busy ? (
                 <Stack direction="row" alignItems="center" gap={1.5} sx={{ width: '100%' }} role="status" aria-live="polite">
                   <CircularProgress size={16} />
                   <Typography fontSize={13}>{STAGES[job.stage] || '處理中'}…</Typography>
                   <Typography fontSize={13} color="text.disabled" sx={{ fontVariantNumeric: 'tabular-nums' }}>{Math.round(job.pct)}% · {fmtMs(elapsed)}</Typography>
                   <Button size="small" variant="outlined" color="inherit" onClick={cancel} sx={{ borderColor: 'divider', color: 'text.secondary', py: 0, minWidth: 0, px: 1.25 }}>取消</Button>
                 </Stack>
-              ) : error ? (
-                <Alert severity="error" sx={{ py: 0, width: '100%' }} action={<Button size="small" color="inherit" onClick={() => run(image, params)}>重試</Button>}>{error}</Alert>
+              ) : shownError ? (
+                <Alert severity="error" sx={{ py: 0, width: '100%' }}
+                  action={<Button size="small" color="inherit" onClick={() => (isAi ? runAi() : run(image, params))} disabled={isAi && quota?.remaining <= 0}>重試</Button>}>{shownError}</Alert>
               ) : s ? (
                 <Stack direction="row" alignItems="center" columnGap={2} rowGap={0.5} flexWrap="wrap" sx={{ width: '100%', fontSize: 12.5, color: 'text.secondary' }} data-testid="vectorize-stats">
+                  {isAi && <span>引擎 <b>Recraft AI</b>{shown.simulated && '（預覽模式模擬）'}</span>}
                   <span>路徑 <b>{s.paths}</b></span>
                   <span>顏色 <b>{s.colors}</b></span>
                   <span>節點 <b>{s.nodes.toLocaleString()}</b></span>
                   <Tooltip title={`最佳化前 ${fmtBytes(s.rawBytes)}，SVGO 精簡 ${Math.max(0, Math.round((1 - s.bytes / s.rawBytes) * 100))}%`}>
                     <span>大小 <b>{fmtBytes(s.bytes)}</b></span>
                   </Tooltip>
-                  {result.scaled && <span>處理尺寸 {result.width}×{result.height}</span>}
-                  <Tooltip title={result.cached ? '參數與先前相同，直接使用已產生的結果'
-                    : `前處理 ${fmtMs(result.timings.preprocess)}・描圖 ${fmtMs(result.timings.trace)}・最佳化 ${fmtMs(result.timings.optimize)}`}>
-                    <span>處理時間 <b>{fmtMs(result.timings.total)}</b>{result.cached && '（快取）'}</span>
+                  {shown.scaled && <span>處理尺寸 {shown.width}×{shown.height}</span>}
+                  <Tooltip title={shown.cached ? '參數與先前相同，直接使用已產生的結果'
+                    : isAi ? `準備圖片 ${fmtMs(shown.timings.preprocess)}・上傳與 AI 轉換 ${fmtMs(shown.timings.trace)}・最佳化 ${fmtMs(shown.timings.optimize)}`
+                      : `前處理 ${fmtMs(shown.timings.preprocess)}・描圖 ${fmtMs(shown.timings.trace)}・最佳化 ${fmtMs(shown.timings.optimize)}`}>
+                    <span>處理時間 <b>{fmtMs(shown.timings.total)}</b>{shown.cached && '（快取）'}</span>
                   </Tooltip>
                   <Box flex={1} />
-                  {stale && <Typography fontSize={12.5} color="warning.main">參數已變更</Typography>}
+                  {stale && !isAi && <Typography fontSize={12.5} color="warning.main">參數已變更</Typography>}
                   <Tooltip title="複製 SVG 程式碼"><Button size="small" color="inherit" startIcon={<ContentCopyOutlined sx={{ fontSize: '16px !important' }} />} onClick={copy} sx={{ color: 'text.secondary' }}>複製</Button></Tooltip>
                 </Stack>
               ) : null}
@@ -273,18 +328,29 @@ export default function VectorizePage() {
           <Box sx={{ width: { xs: '100%', md: 300 }, flex: 'none', borderRight: { md: 1 }, borderTop: { xs: 1, md: 0 }, borderColor: { xs: 'divider', md: 'divider' },
             bgcolor: 'background.paper', display: 'flex', flexDirection: 'column', minHeight: 0, order: { xs: 1, md: 0 } }}>
             <Box sx={{ flex: 1, overflowY: { md: 'auto' } }}>
-              <ParamsPanel params={params} onChange={setParams} result={result} image={image} />
+              {canUseAi && (
+                <Box sx={{ px: 2, pt: 1.75, pb: 1.5, borderBottom: 1, borderColor: 'divider' }}>
+                  <Typography fontSize={12} fontWeight={600} color="text.disabled" mb={1}>轉換引擎</Typography>
+                  <ToggleButtonGroup fullWidth size="small" exclusive value={engine} onChange={(_, v) => v && setEngine(v)} aria-label="轉換引擎">
+                    <ToggleButton value="local" sx={{ fontSize: 13, py: 0.6 }}>本機（免費）</ToggleButton>
+                    <ToggleButton value="ai" sx={{ fontSize: 13, py: 0.6 }}>AI（Recraft）</ToggleButton>
+                  </ToggleButtonGroup>
+                </Box>
+              )}
+              {isAi
+                ? <AiPanel quota={quota} busy={!!aiJob} done={!!aiResult} onRun={runAi} onSetLimit={setAiLimit} image={image} aiSize={aiSize} />
+                : <ParamsPanel params={params} onChange={setParams} result={result} image={image} />}
             </Box>
             <Divider />
-            <Stack gap={1} sx={{ p: 2 }}>
-              <FormControlLabel sx={{ mx: 0, justifyContent: 'space-between', '& .MuiFormControlLabel-label': { fontSize: 13.5 } }} labelPlacement="start"
-                label="調整參數後自動更新" control={<Switch size="small" checked={autoRun} onChange={(e) => setAutoRun(e.target.checked)} />} />
-              <Stack direction="row" gap={1}>
+            <Stack gap={1} sx={{ p: 2, display: isAi ? { xs: 'flex', sm: 'none' } : 'flex' }}>
+              {!isAi && <FormControlLabel sx={{ mx: 0, justifyContent: 'space-between', '& .MuiFormControlLabel-label': { fontSize: 13.5 } }} labelPlacement="start"
+                label="調整參數後自動更新" control={<Switch size="small" checked={autoRun} onChange={(e) => setAutoRun(e.target.checked)} />} />}
+              {!isAi && <Stack direction="row" gap={1}>
                 <Button fullWidth variant={stale && !autoRun ? 'contained' : 'outlined'} startIcon={<RefreshOutlined />} disabled={busy} onClick={() => run(image, params)}>
                   重新產生
                 </Button>
                 <Button color="inherit" onClick={() => setParams(DEFAULT_PARAMS)} sx={{ color: 'text.secondary', flex: 'none' }}>重設</Button>
-              </Stack>
+              </Stack>}
               <Button variant="outlined" color="inherit" startIcon={<ImageOutlined />} onClick={() => fileInput.current?.click()}
                 sx={{ borderColor: 'divider', display: { sm: 'none' } }}>更換圖片</Button>
             </Stack>
