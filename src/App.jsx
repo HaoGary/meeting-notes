@@ -1,30 +1,41 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Button, CircularProgress, Stack, Typography } from '@mui/material';
+import { Button, CircularProgress, Stack, Typography } from '@mui/material';
 import LockOutlined from '@mui/icons-material/LockOutlined';
-import { createApi, devLogin, devUsers, resetDb, simulateOtherUserEdit } from './services/api';
+import { createApi, devLogin, devUsers, resetDb, simulateOtherUserEdit, DemoPanel } from './services/api';
 import { features } from './services/config';
 import { MEETING_STATUS } from './services/seed';
 import { clearToken, getToken, setToken } from './services/session';
 import LoginPage from './pages/auth/LoginPage';
-import RegisterPage from './pages/auth/RegisterPage';
-import VerifyEmailPage, { ConfirmLinkPage } from './pages/auth/VerifyEmailPage';
-import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
-import ResetPasswordPage from './pages/auth/ResetPasswordPage';
-import ForceChangePasswordPage from './pages/auth/ForceChangePasswordPage';
-import AccountSettingsPage from './pages/account/AccountSettingsPage';
-import AccountsPage from './pages/admin/AccountsPage';
 import { deviceLabel } from './utils/device';
 import AppShell from './components/layout/AppShell';
 import NotificationBell from './components/layout/NotificationBell';
 import MeetingListPage from './pages/meetings/MeetingListPage';
-import MeetingPage from './pages/meetings/MeetingPage';
-import PermissionsPage from './pages/admin/PermissionsPage';
-import SharePage from './pages/meetings/SharePage';
-import NewMeetingDialog from './components/meetings/NewMeetingDialog';
-import DemoPanel from './dev/DemoPanel';
 import { AppDialog, useToast } from './components/common/ui';
-// 圖片向量化含 WebAssembly 引擎，延後到進入頁面時才載入
+// ── 依頁面分割程式碼：首頁（會議列表）與登入頁直接載入，其他頁面進入時才下載 ──
+// 會議編輯頁含 Tiptap 編輯器；圖片向量化含 WebAssembly 引擎；後台、帳號設定、其他登入流程頁面使用頻率較低
+const loadMeetingPage = () => import('./pages/meetings/MeetingPage');
+const MeetingPage = lazy(loadMeetingPage);
+const SharePage = lazy(() => import('./pages/meetings/SharePage'));
+const loadNewMeeting = () => import('./components/meetings/NewMeetingDialog');
+const loadAccounts = () => import('./pages/admin/AccountsPage');
+const loadPermissions = () => import('./pages/admin/PermissionsPage');
+const loadAccountSettings = () => import('./pages/account/AccountSettingsPage');
+const prefetchPages = [loadNewMeeting, loadAccounts, loadPermissions, loadAccountSettings];
+const NewMeetingDialog = lazy(loadNewMeeting);
+const AccountsPage = lazy(loadAccounts);
+const PermissionsPage = lazy(loadPermissions);
+const AccountSettingsPage = lazy(loadAccountSettings);
 const VectorizePage = lazy(() => import('./pages/tools/VectorizePage'));
+const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
+const VerifyEmailPage = lazy(() => import('./pages/auth/VerifyEmailPage'));
+const ConfirmLinkPage = lazy(() => import('./pages/auth/VerifyEmailPage').then((m) => ({ default: m.ConfirmLinkPage })));
+const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
+const ForceChangePasswordPage = lazy(() => import('./pages/auth/ForceChangePasswordPage'));
+// 頁面程式碼下載中：與既有的載入畫面相同（置中轉圈）
+const PageLoading = ({ full }) => (
+  <Stack flex={1} height={full ? '100vh' : undefined} minHeight={full ? undefined : 240} alignItems="center" justifyContent="center"><CircularProgress size={28} /></Stack>
+);
 import { AUTH_PAGES, HOME, PENDING_EMAIL, PUBLIC_PAGES, parseHash, toHash } from './router/hashRoutes';
 
 export default function App() {
@@ -49,6 +60,8 @@ export default function App() {
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newOpen, setNewOpen] = useState(false);
+  const [newMounted, setNewMounted] = useState(false);
+  useEffect(() => { if (newOpen) setNewMounted(true); }, [newOpen]);
   const [leaveTarget, setLeaveTarget] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [returnTo, setReturnTo] = useState(null);
@@ -72,21 +85,26 @@ export default function App() {
     endSession({ severity: 'warning', msg: ['ACCOUNT_DISABLED', 'SESSION_REVOKED'].includes(e.code) ? e.message : '登入已逾時或已在其他地方登出，請重新登入' }, true, me?.user?.username);
   };
 
-  const loadMe = useCallback(async () => {
+  const usersAt = useRef(0); // 使用者名單上次更新時間（避免切換頁面時重複抓取）
+  const loadMe = useCallback(async ({ withList = false } = {}) => {
     try {
       const m = await api.me();
       if (m.user.mustChangePassword) { setMe(m); return false; } // 先完成變更密碼
-      const u = await api.listUsers();
+      // 使用者名單與會議列表同時抓取（原本依序等待）
+      const [u] = await Promise.all([api.listUsers(), withList ? loadListRef.current() : null]);
+      usersAt.current = Date.now();
       setMe(m); setUsers(u);
       return true;
     } catch { return false; }
   }, [api]);
+  const loadListRef = useRef(null);
   // silent：背景更新（例如收到他人變動通知），不顯示載入中、失敗也不跳提示
   const loadList = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try { setMeetings(await api.listMeetings()); } catch (e) { if (e.status !== 401 && !silent) toast(e.message, 'error'); }
     if (!silent) setLoading(false);
   }, [api, toast]);
+  loadListRef.current = loadList;
 
   // ── 登入狀態守門：帳號被停用、或這台裝置被強制登出時立即登出（每分鐘、切回分頁時檢查） ──
   const signedIn = !!me?.user && !me.user.mustChangePassword;
@@ -106,11 +124,34 @@ export default function App() {
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', check); window.removeEventListener('focus', check); };
   }, [signedIn, api]);
 
+  // 登入後預先下載常用頁面的程式碼（與會議列表同時進行），之後切換頁面不必等待下載
+  // 會議編輯頁立即開始；其他較小的頁面在瀏覽器閒置時下載。圖片向量化（較大）不預載。
+  useEffect(() => {
+    if (!signedIn) return undefined;
+    loadMeetingPage().catch(() => {});
+    const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1200));
+    const cancel = window.cancelIdleCallback || clearTimeout;
+    const id = idle(() => {
+      prefetchPages.forEach((load) => load().catch(() => {}));
+    });
+    return () => cancel(id);
+  }, [signedIn]);
+
+  // 不在列表時收到的變動：回到列表（含上一頁、改網址）時背景更新
+  const listStale = useRef(false);
+  useEffect(() => {
+    if (route.page === 'meetings' && listStale.current && signedIn) { listStale.current = false; loadList({ silent: true }); }
+  }, [route.page, signedIn, loadList]);
+
   // ── 會議列表即時更新：他人新增、修改、刪除會議或調整參與人員時自動重新整理 ──
   useEffect(() => {
     if (!signedIn || !api.realtime) return undefined;
     let t = null;
-    const off = api.realtime.onMeetingsChange(() => { clearTimeout(t); t = setTimeout(() => loadList({ silent: true }), 600); });
+    // 只有正在看會議列表時才立即重抓；在其他頁面時，回到列表會自動更新（避免多人編輯時每台都不斷重抓）
+    const off = api.realtime.onMeetingsChange(() => {
+      if (routeRef.current.page !== 'meetings') { listStale.current = true; return; }
+      clearTimeout(t); t = setTimeout(() => loadList({ silent: true }), 600);
+    });
     return () => { clearTimeout(t); off(); };
   }, [signedIn, api, loadList]);
 
@@ -125,7 +166,7 @@ export default function App() {
   useEffect(() => {
     if (!token) { setMe(null); return; }
     setMe(null);
-    loadMe().then((ok) => ok && loadList());
+    loadMe({ withList: true });
   }, [token, reloadKey]); // eslint-disable-line
 
   // 未登入卻進入需登入的頁面 → 導向登入並記住原頁；已登入卻在登入/註冊頁 → 回首頁
@@ -177,8 +218,19 @@ export default function App() {
     setRoute(r);
   };
   // 使用者名單（主持人、參與人員選單用）：進入會議相關頁面時重新抓取，帳號管理新增或停用的人會立即反映
-  const refreshUsers = useCallback(() => api.listUsers().then(setUsers).catch(() => {}), [api]);
-  const navigate = (r) => guard(() => { setRoute(r); if (r.page === 'meetings') loadList(); });
+  // 30 秒內已抓過就不重抓；離開帳號管理頁時一律重抓（新增、停用的帳號立即反映）
+  const refreshUsers = useCallback((force = false) => {
+    if (!force && Date.now() - usersAt.current < 30_000) return Promise.resolve();
+    usersAt.current = Date.now();
+    return api.listUsers().then(setUsers).catch(() => { usersAt.current = 0; });
+  }, [api]);
+  const prevPage = useRef(route.page);
+  useEffect(() => {
+    if (prevPage.current === 'accounts' && route.page !== 'accounts') usersAt.current = 0;
+    prevPage.current = route.page;
+  }, [route.page]);
+  // 回到會議列表：已有資料時先顯示，背景更新（不再整頁顯示載入中）
+  const navigate = (r) => guard(() => { setRoute(r); if (r.page === 'meetings') loadList({ silent: meetings.length > 0 }); });
   // 不論是點選單、點通知、改網址或按上一頁，只要進入會議列表或會議頁就更新名單
   const hasMe = !!me;
   useEffect(() => {
@@ -196,16 +248,16 @@ export default function App() {
     } catch (e) { toast(e.message, 'error'); return false; }
   };
   const setStatus = async (id, status) => {
-    try { await api.updateMeeting(id, { status }); toast(`已變更為「${MEETING_STATUS[status]}」`); loadList(); }
+    try { await api.updateMeeting(id, { status }); toast(`已變更為「${MEETING_STATUS[status]}」`); loadList({ silent: true }); }
     catch (e) { toast(e.message, 'error'); }
   };
   const remove = async (id) => {
-    try { await api.deleteMeeting(id); toast('已刪除會議'); loadList(); }
+    try { await api.deleteMeeting(id); toast('已刪除會議'); loadList({ silent: true }); }
     catch (e) { toast(e.message, 'error'); }
   };
   const onMeetingChanged = useCallback((m) => setMeetings((list) => list.map((x) => (x.id === m.id ? { ...x, ...m } : x))), []);
 
-  const demo = features.demoPanel && (
+  const demo = features.demoPanel && DemoPanel && (
     <DemoPanel users={devUsers()} currentUserId={me?.user?.id || 'guest'} meetingOpen={route.page === 'meeting'}
       onUser={(id) => guard(async () => {
         if (id === 'guest') { if (tokenRef.current) { await api.auth.logout(tokenRef.current); endSession(null, false); } toast('已登出（訪客）'); return; }
@@ -237,15 +289,15 @@ export default function App() {
         onBackToApp={me?.user ? () => { const r = returnTo || HOME; setReturnTo(null); setRoute(r); if (r.page === 'meetings') loadList(); } : null} />
     );
   }
-  if (publicView && !(token && me && ['login', 'register', 'forgot-password'].includes(route.page))) return <>{publicView}{demo}</>;
+  if (publicView && !(token && me && ['login', 'register', 'forgot-password'].includes(route.page))) return <><Suspense fallback={<PageLoading full />}>{publicView}</Suspense>{demo}</>;
 
   // ── 需登入 ──
   if (!token || !me) return <Stack height="100vh" alignItems="center" justifyContent="center"><CircularProgress size={28} />{demo}</Stack>;
   const currentUser = me.user;
   // 使用臨時密碼登入：必須先設定新密碼（後端也會拒絕其他 API）
   if (currentUser.mustChangePassword) {
-    return <><ForceChangePasswordPage api={api} user={currentUser} onLogout={logout}
-      onDone={() => { loadMe().then(() => loadList()); setRoute(pending && !AUTH_PAGES.includes(pending.page) ? pending : routeRef.current); }} />{demo}</>;
+    return <><Suspense fallback={<PageLoading full />}><ForceChangePasswordPage api={api} user={currentUser} onLogout={logout}
+      onDone={() => { loadMe({ withList: true }); setRoute(pending && !AUTH_PAGES.includes(pending.page) ? pending : routeRef.current); }} /></Suspense>{demo}</>;
   }
   const noAccess = (perm) => (
     <Stack flex={1} alignItems="center" justifyContent="center" gap={1.25} p={3} textAlign="center">
@@ -259,6 +311,7 @@ export default function App() {
   return (
     <AppShell page={route.page} onNavigate={(key) => navigate({ page: key })} user={currentUser} permissions={me.permissions} onLogout={logout}
       notifications={<NotificationBell key={currentUser.id} api={api} onOpenMeeting={openMeeting} />}>
+      <Suspense fallback={<PageLoading />}>
       {route.page === 'meetings' && (
         <MeetingListPage api={api} onOpenShare={openShare} meetings={meetings} loading={loading} users={users} canCreate={can('meeting.create')}
           onOpen={openMeeting} onNew={() => setNewOpen(true)} onSetStatus={setStatus} onDelete={remove} />
@@ -274,12 +327,12 @@ export default function App() {
       {route.page === 'accounts' && (can('system.accounts')
         ? <AccountsPage key={currentUser.id + reloadKey} api={api} currentUser={currentUser} canSetRole={can('system.permissions')} />
         : noAccess('帳號管理'))}
-      {route.page === 'vectorize' && (
-        <Suspense fallback={<Box sx={{ p: 3 }}><CircularProgress size={24} /></Box>}><VectorizePage api={api} canUseAi={can('tools.vectorize_ai')} /></Suspense>
-      )}
+      {route.page === 'vectorize' && <VectorizePage api={api} canUseAi={can('tools.vectorize_ai')} />}
       {route.page === 'account' && <AccountSettingsPage key={currentUser.id} api={api} user={currentUser} onUpdated={() => { loadMe(); }} />}
+      </Suspense>
 
-      <NewMeetingDialog open={newOpen} onClose={() => setNewOpen(false)} onCreate={create} />
+      {/* 新增會議對話框：第一次開啟時才下載，之後保留以維持關閉動畫 */}
+      {newMounted && <Suspense fallback={null}><NewMeetingDialog open={newOpen} onClose={() => setNewOpen(false)} onCreate={create} /></Suspense>}
 
       <AppDialog open={!!leaveTarget} title="尚有未儲存的變更" onClose={() => { leaveTarget?.onCancel?.(); setLeaveTarget(null); }}
         actions={<>

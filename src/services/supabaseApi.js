@@ -115,14 +115,15 @@ export function createApi(_getToken, { onUnauthorized, onSignedOut } = {}) {
   return {
     // ── 目前登入者 ──
     async me() {
-      const data = await rpc('my_profile');
+      // 個人資料與角色名稱同時查詢（原本依序等待兩次往返）
+      const [data, names] = await Promise.all([rpc('my_profile'), roleNames()]);
       if (!data) throw unauthorized('找不到帳號資料，請重新登入', 'NOT_LOGGED_IN');
       const u = data.user;
       if (!u.active) {
         await signOut('local');
         throw unauthorized('此帳號已停用，請聯絡系統管理員', 'ACCOUNT_DISABLED');
       }
-      return { user: toProfile(u, await roleNames()), permissions: data.permissions };
+      return { user: toProfile(u, names), permissions: data.permissions };
     },
     async listUsers() {
       const rows = await run(sb.from('profiles').select('id, name, color, active').eq('active', true).order('created_at'));
@@ -213,7 +214,7 @@ export function createApi(_getToken, { onUnauthorized, onSignedOut } = {}) {
       return { version: r.version, updatedAt: ms(r.updated_at) };
     },
     async listHistory(meetingId) {
-      const rows = await run(sb.from('meeting_history').select('*').eq('meeting_id', meetingId)
+      const rows = await run(sb.from('meeting_history').select('id, meeting_id, user_id, action, created_at').eq('meeting_id', meetingId)
         .order('created_at', { ascending: false }).limit(50));
       return rows.map(toHistory);
     },
@@ -556,7 +557,7 @@ export function createApi(_getToken, { onUnauthorized, onSignedOut } = {}) {
         return fn('resendInvite', { userId });
       },
       async listAuditLogs() {
-        const rows = await run(sb.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100));
+        const rows = await run(sb.from('audit_logs').select('id, actor_id, action, created_at').order('created_at', { ascending: false }).limit(100));
         return rows.map((a) => ({ id: a.id, userId: a.actor_id, action: a.action, at: ms(a.created_at) }));
       },
     },

@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { resetRecognizer, speechDev } from './speechSetup';
-import { devFlags } from '../../services/mockServer';
+import { devFlags } from '../../services/devFlags';
 
 export const SPEECH_ERRORS = {
   unsupported: { title: '瀏覽器不支援語音辨識', message: '請改用最新版 Chrome、Edge 或 Safari，或直接以鍵盤輸入。', retry: false },

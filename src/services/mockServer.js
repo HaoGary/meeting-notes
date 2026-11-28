@@ -10,7 +10,8 @@ import { validateAll, registerSchema, resetSchema, passwordIssues, EMAIL_RE, USE
 
 const KEY = 'meeting-notes-preview-db-v6';
 let db = load();
-export const devFlags = { failSaves: false, latency: 450 };
+import { devFlags } from './devFlags';
+export { devFlags };
 
 function load() {
   try {

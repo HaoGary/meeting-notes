@@ -10,8 +10,8 @@ import ShieldOutlined from '@mui/icons-material/ShieldOutlined';
 import ShareOutlined from '@mui/icons-material/ShareOutlined';
 import { PASSWORD_RULES } from '../../utils/validators';
 import brandBg from '../../assets/auth/brand-bg.webp';
-import logo from '../../assets/auth/logo.png';
-import logoWhite from '../../assets/auth/logo-white.png';
+import logo from '../../assets/auth/logo.webp';
+import logoWhite from '../../assets/auth/logo-white.webp';
 
 // ── 版面：左側品牌區（桌面）＋ 右側表單 ──
 // 品牌區依 Figma 設計稿（會議紀錄系統 › 01–03）：背景插圖、Meeting Notes 標誌（105×40）、主色標語

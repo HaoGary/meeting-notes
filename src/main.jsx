@@ -3,7 +3,6 @@ import { CssBaseline, GlobalStyles, ThemeProvider } from '@mui/material';
 import App from './App';
 import theme, { proseStyles } from './styles/theme';
 import { ToastProvider } from './components/common/ui';
-import { PickerProvider } from './components/common/pickers';
 import { handleAuthRedirect } from './services/supabaseClient';
 
 // 從邀請信、重設密碼信回來時，先建立 session 再顯示畫面
@@ -11,6 +10,6 @@ handleAuthRedirect().finally(() => createRoot(document.getElementById('root')).r
   <ThemeProvider theme={theme}>
     <CssBaseline />
     <GlobalStyles styles={proseStyles} />
-    <PickerProvider><ToastProvider><App /></ToastProvider></PickerProvider>
+    <ToastProvider><App /></ToastProvider>
   </ThemeProvider>
 ));

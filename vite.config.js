@@ -1,6 +1,7 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import vtracerWeb from './vite/vtracerWeb.js';
 
 // 兩種建置方式：
@@ -44,8 +45,14 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export default defineConfig(({ mode }) => {
   const local = mode === 'standalone';
+  // 後端模式（與 src/services/config.js 相同規則）：只打包用得到的後端實作
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  const backend = env.VITE_BACKEND || (env.VITE_SUPABASE_URL ? 'supabase' : 'mock');
   return {
     base: './',
+    resolve: {
+      alias: { '@backend': fileURLToPath(new URL(`./src/services/backend.${backend === 'supabase' ? 'supabase' : 'mock'}.js`, import.meta.url)) },
+    },
     plugins: [react(), vtracerWeb(), local && inlineIntoHtml()],
     // 圖片向量化的 Web Worker 也需要 vtracer 轉換外掛
     worker: { format: 'iife', plugins: () => [vtracerWeb()] },
@@ -71,7 +78,9 @@ export default defineConfig(({ mode }) => {
             manualChunks(id) {
               if (!id.includes('node_modules')) return undefined;
               // 圖片向量化專用套件跟著延後載入的頁面，不放進每頁都會載入的 vendor
-              if (/[\\/](svgo|@visioncortex)[\\/]/.test(id)) return undefined;
+              if (/[\\/](svgo|@visioncortex|react-speech-recognition)[\\/]/.test(id)) return undefined;
+              // 日期選擇器只有會議頁、新增會議用到，跟著那些頁面延後載入
+              if (/[\\/](@mui[\\/]x-date-pickers|dayjs)[\\/]/.test(id)) return 'vendor-pickers';
               if (/[\\/](@tiptap|prosemirror-[^\\/]+|linkifyjs|orderedmap|rope-sequence|w3c-keyname)[\\/]/.test(id)) return 'vendor-editor';
               if (/[\\/](@mui|@emotion|@popperjs|dayjs)[\\/]/.test(id)) return 'vendor-mui';
               return 'vendor';

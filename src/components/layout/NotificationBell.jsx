@@ -31,11 +31,15 @@ export default function NotificationBell({ api, onOpenMeeting }) {
   const unread = (list || []).filter((n) => !n.read).length;
 
   const load = useCallback(() => api.notifications.list().then(setList).catch(() => {}), [api]);
+  // 新通知主要靠即時推播；輪詢只是備援：分頁在背景時暫停，切回分頁時立即更新
   useEffect(() => {
     load();
     const unsubscribe = api.notifications.subscribe(load);
-    const timer = setInterval(load, 60e3);
-    return () => { unsubscribe(); clearInterval(timer); };
+    const tick = () => { if (document.visibilityState === 'visible') load(); };
+    const timer = setInterval(tick, 5 * 60e3);
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { unsubscribe(); clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, [api, load]);
 
   const open = (n) => {

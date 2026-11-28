@@ -48,7 +48,7 @@ function fieldProps({ variant, label, error, helperText, id, onOpen, width, icon
   };
 }
 
-export function DateInput({ value, onChange, disabled, variant = 'outlined', label, error, helperText, id, width = 190 }) {
+function DateInputInner({ value, onChange, disabled, variant = 'outlined', label, error, helperText, id, width = 190 }) {
   const [open, setOpen] = useState(false);
   return (
     <DatePicker value={toDate(value)} disabled={disabled} open={open} onOpen={() => setOpen(true)} onClose={() => setOpen(false)}
@@ -101,7 +101,7 @@ function Column({ title, items, selected, isDisabled, onPick, open }) {
   );
 }
 
-export function TimeInput({ value, onChange, disabled, variant = 'outlined', label, error, helperText, id, minTime, width = 120, step = 1 }) {
+function TimeInputInner({ value, onChange, disabled, variant = 'outlined', label, error, helperText, id, minTime, width = 120, step = 1 }) {
   const [anchor, setAnchor] = useState(null);
   const [draft, setDraft] = useState([null, null]);
   const [minH, minM] = parseHM(minTime);
@@ -147,3 +147,7 @@ export function TimeInput({ value, onChange, disabled, variant = 'outlined', lab
     </>
   );
 }
+
+// 每個選擇器自帶 LocalizationProvider（只是 context），讓日期套件只在用到的頁面才載入
+export function DateInput(props) { return <PickerProvider><DateInputInner {...props} /></PickerProvider>; }
+export function TimeInput(props) { return <PickerProvider><TimeInputInner {...props} /></PickerProvider>; }
